@@ -1,4 +1,4 @@
-# Ports_mapping_using_behavioral_vessel_data
+# Ports mapping using behavioral vessel data
 
 ## Problem description
 Ports are the departure and arrival points of almost all vessel journeys and play a major role in the supply chain of various goods. As such, ports --  and associated  areas within or around them (namely: docks and port waiting areas) -- are a central point of interest in the maritime world. Therefore, being able to identify them, locate them accurately and distinguish between them can serve various needs of Windwards customers. Though along the years Windward had gained lots of information about them, their mapping and coverage are far from being complete.
