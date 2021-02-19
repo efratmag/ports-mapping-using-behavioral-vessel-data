@@ -37,6 +37,27 @@ def today_str():
     return today
 
 
+def load_and_process_polygons_file(polygons_file_path, area_geohash):
+
+    """
+    a function that loading the polygons file, converting to GeoPandas, and drops  polygons out of area snapshot
+    :param import_path: path to folder in which polygons_file_name
+    :param polygons_file_path: i.e 'polygons.json'
+    :param area_geohash: geohash of snapshot area
+    :return:
+    """
+
+    logging.info(f'loading file polygons...')
+    polygons_df = pd.read_json(polygons_file_path, orient='index')
+    polygons_df = gpd.GeoDataFrame(polygons_df)  # convert to GeoPandas
+    polygons_df['geometry'] = polygons_df['geometry'].apply(shape)  # convert to shape object
+    polygons_df['centroid'] = polygons_df['geometry'].centroid  # get polygons centroid
+    polygons_df['geohash'] = polygons_df['centroid'].apply(lambda x: Geohash.encode(x.y, x.x, 2))  # resolve geohash per polygon centroid
+    polygons_df = polygons_df[polygons_df['geohash'] == area_geohash].drop('centroid', axis=1)  # drop polygons out of geohash
+
+    return polygons_df
+
+
 def main(lat, lng, import_path, export_path, distance=100, debug=True):
 
     """
@@ -60,7 +81,7 @@ def main(lat, lng, import_path, export_path, distance=100, debug=True):
 
     bounding_box = get_bounding_box(lat, lng, distance)
 
-    area_geohash = Geohash.encode(lat, lng, 3)
+    area_geohash = Geohash.encode(lat, lng, 2)
 
     files_list = os.listdir(import_path)
 
@@ -69,15 +90,10 @@ def main(lat, lng, import_path, export_path, distance=100, debug=True):
     vessels_df = pd.read_csv(os.path.join(import_path, 'vessels.csv.gz'), compression='gzip',
                              usecols=VESSELS_RELEVANT_COLS)
 
-    logging.info(f'loading file polygons...')
-    polygons_df = pd.read_json(os.path.join(import_path, 'polygons.json'), orient='index')
-    polygons_df = gpd.GeoDataFrame(polygons_df)
-    polygons_df['geometry'] = polygons_df['geometry'].apply(shape)  # convert to shape object
-    polygons_df['centroid'] = polygons_df['geometry'].centroid
-    polygons_df['geohash'] = polygons_df['centroid'].apply(lambda x: Geohash.encode(x.y, x.x, 3))  # resolve geohash per polygon centroid
-    polygons_df = polygons_df[polygons_df['geohash'] == area_geohash].drop('centroid', axis=1)  # drop polygons out of geohash
-
     vessels_df = vessels_df.add_prefix('vessel_')
+
+    polygons_file_path = os.path.join(import_path, 'polygons.json')
+    polygons_df = load_and_process_polygons_file(polygons_file_path, area_geohash)
 
     for file_name in files_list:
 
