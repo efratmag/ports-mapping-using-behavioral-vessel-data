@@ -1,3 +1,4 @@
+from area_snaptshot.map_config import MAP_CONFIG
 from geo_utils import get_bounding_box, isin_box
 import os
 import fire
@@ -77,6 +78,10 @@ def main(lat, lng, import_path, export_path, distance=100, debug=True):
 
     kepler_map = KeplerGl()
 
+    #  define the map center by the given coordinates
+    MAP_CONFIG['config']['mapState']['latitude'] = lat
+    MAP_CONFIG['config']['mapState']['longitude'] = lng
+
     results_list = []
 
     bounding_box = get_bounding_box(lat, lng, distance)
@@ -118,7 +123,7 @@ def main(lat, lng, import_path, export_path, distance=100, debug=True):
     kepler_map.add_data(polygons_df, 'polygons')
 
     results_df.to_csv(os.path.join(export_path, vessels_file_name))
-    kepler_map.save_to_html(file_name=os.path.join(export_path, map_file_name))
+    kepler_map.save_to_html(file_name=os.path.join(export_path, map_file_name), config=MAP_CONFIG)
 
 
 if __name__ == "__main__":
