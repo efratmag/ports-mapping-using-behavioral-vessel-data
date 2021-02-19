@@ -11,12 +11,17 @@ import logging
 
 ACTIVITIES_FILES = ['mooring.csv.gz', 'drifting.csv.gz', 'port_calls.csv.gz', 'anchoring.csv.gz']
 
-# CONSTANTS_FILES = ['vessels.csv.gz', 'polygons.json', 'ports.json']
-
 VESSELS_RELEVANT_COLS = ['_id', 'class_calc', 'subclass_documented', 'built_year', 'name', 'deadweight', 'size', 'age']
 
 
 def extract_coordinates(df, col='firstBlip'):
+
+    """
+    a function that extracts lat and lng from a Series with geometry dict
+    :param df: Dataframe with coordinates dict columns
+    :param col: name of column for coordinates extraction
+    :return:
+    """
 
     df[[col+'_lng', col+'_lat']] = df[col].apply(eval).apply(lambda x: x['geometry']['coordinates']).apply(pd.Series)
 
@@ -24,6 +29,10 @@ def extract_coordinates(df, col='firstBlip'):
 
 
 def today_str():
+    """
+    a simple function that returns today's date
+    :return:
+    """
     today = datetime.date.today().strftime('%Y-%m-%d')
     return today
 
@@ -31,13 +40,13 @@ def today_str():
 def main(lat, lng, import_path, export_path, distance=100, debug=True):
 
     """
-
+    This code will create an snapshot of a area for a given location and distance
     :param lat: latitude of the snapshot location
     :param lng: longitude of the snapshot location
     :param import_path: path to directory with all relevant files
     :param export_path: path in which the output will be exported
-    :param distance: bounding box Length in Km
-    :param debug:
+    :param distance: bounding box length in Km
+    :param debug: if True, only a first 10K rows of each file will be processed
     :return:
     """
 
@@ -63,7 +72,7 @@ def main(lat, lng, import_path, export_path, distance=100, debug=True):
     logging.info(f'loading file polygons...')
     polygons_df = pd.read_json(os.path.join(import_path, 'polygons.json'), orient='index')
     polygons_df = gpd.GeoDataFrame(polygons_df)
-    polygons_df['geometry'] = polygons_df['geometry'].apply(shape)
+    polygons_df['geometry'] = polygons_df['geometry'].apply(shape)  # convert to shape object
     polygons_df['centroid'] = polygons_df['geometry'].centroid
     polygons_df['geohash'] = polygons_df['centroid'].apply(lambda x: Geohash.encode(x.y, x.x, 3))  # resolve geohash per polygon centroid
     polygons_df = polygons_df[polygons_df['geohash'] == area_geohash].drop('centroid', axis=1)  # drop polygons out of geohash
