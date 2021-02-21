@@ -122,7 +122,7 @@ def main(lat, lng, import_path, export_path, distance=100, debug=True):
     kepler_map.add_data(results_df, 'vessels_behavior')
     kepler_map.add_data(polygons_df, 'polygons')
 
-    results_df.to_csv(os.path.join(export_path, vessels_file_name))
+    results_df.to_csv(os.path.join(export_path, vessels_file_name), index=False)
     kepler_map.save_to_html(file_name=os.path.join(export_path, map_file_name), config=MAP_CONFIG)
 
 
