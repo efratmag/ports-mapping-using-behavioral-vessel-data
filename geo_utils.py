@@ -1,4 +1,6 @@
 import math
+import json
+from shapely.geometry import shape, Point
 
 R = 6378.1  # Radius of the Earth
 brng_n_e = 1.0472  # 60 degrees converted to radians.
@@ -65,3 +67,23 @@ def isin_box(lat, lng, bounds):
             within = True
 
     return within
+
+
+def is_in_polygon(lng, lat, polygon_fname):
+    """
+    checks if a point is inside a polygon
+    :param lng: long of point
+    :param lat: latitude of point
+    :param polygon_fname: the polygon file name for which to test if the point is inside of. can take manually defined in geojson.io
+    :return: boolean
+    """
+    with open(polygon_fname) as f:
+        polygon = json.load(f)
+
+    point = Point(lng, lat)
+
+    for feature in polygon['features']:
+        poly = shape(feature['geometry'])
+
+    return poly.contains(point)
+
