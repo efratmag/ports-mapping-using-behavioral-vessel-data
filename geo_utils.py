@@ -70,6 +70,7 @@ def isin_box(lat, lng, bounds):
 
 
 def is_in_polygon(lng, lat, polygon_fname):
+
     """
     checks if a point is inside a polygon
     :param lng: long of point
@@ -77,6 +78,7 @@ def is_in_polygon(lng, lat, polygon_fname):
     :param polygon_fname: the polygon file name for which to test if the point is inside of. can take manually defined in geojson.io
     :return: boolean
     """
+
     with open(polygon_fname) as f:
         polygon = json.load(f)
 
@@ -84,6 +86,7 @@ def is_in_polygon(lng, lat, polygon_fname):
 
     for feature in polygon['features']:
         poly = shape(feature['geometry'])
+        verdict = poly.contains(point)
 
-    return poly.contains(point)
+    return verdict
 
