@@ -1,12 +1,11 @@
 from area_snaptshot.map_config import MAP_CONFIG
-from geo_utils import get_bounding_box, isin_box
+from geo_utils import get_bounding_box, isin_box, is_in_polygon
 import os
 import fire
 import pandas as pd
 import datetime
 import geopandas as gpd
-import json
-from shapely.geometry import shape, Point
+from shapely.geometry import shape
 import Geohash
 from keplergl import KeplerGl
 import logging
@@ -30,18 +29,6 @@ def extract_coordinates(df, col='firstBlip'):
 
     return df
 
-def is_in_polygon(lng, lat, polygon):
-    """
-    checks if a point is inside a polygon
-    :param lng: long of point
-    :param lat: latitude of point
-    :param polygon: the polygon for which to test if the point is inside of. can take manually defined in geojson.io
-    :return: boolean
-    """
-    point = Point(lng,lat)
-    for feature in polygon['features']:
-        poly = shape(feature['geometry'])
-    return poly.contains(point)
 
 
 def today_str():
@@ -74,14 +61,16 @@ def load_and_process_polygons_file(polygons_file_path, area_geohash):
     return polygons_df
 
 
-def main(lat, lng, import_path, export_path, distance=100, debug=True, ef_mac=False):
+def main(import_path, export_path, create_bounding_box=True, lat=None, lng=None, polygon_fname=None,
+         distance=100, debug=True, ef_mac=False):
 
     """
     This code will create an snapshot of a area for a given location and distance
-    :param lat: latitude of the snapshot location
-    :param lng: longitude of the snapshot location
     :param import_path: path to directory with all relevant files
     :param export_path: path in which the output will be exported
+    :param lat: add if create_bounding_box=True. latitude of the snapshot location
+    :param lng: add if create_bounding_box=True. longitude of the snapshot location
+    :param polygon_fname: : add if create_bounding_box=True.  file name of polygon.geojson
     :param distance: bounding box length in Km
     :param debug: if True, only a first 10K rows of each file will be processed
     :return:
@@ -98,8 +87,8 @@ def main(lat, lng, import_path, export_path, distance=100, debug=True, ef_mac=Fa
     MAP_CONFIG['config']['mapState']['longitude'] = lng
 
     results_df = pd.DataFrame()
-
-    bounding_box = get_bounding_box(lat, lng, distance)
+    if create_bounding_box:
+        bounding_box = get_bounding_box(lat, lng, distance)
 
     area_geohash = Geohash.encode(lat, lng, 2)
 
@@ -126,8 +115,10 @@ def main(lat, lng, import_path, export_path, distance=100, debug=True, ef_mac=Fa
         for file_name in files_list:
             df = pd.read_pickle(file_name)
             df = df[['_id', 'vesselId', 'firstBlip_lat', 'firstBlip_lng']]
-
-            df = df[df.apply(lambda x: isin_box(x['firstBlip_lat'], x['firstBlip_lng'], bounding_box), axis=1)]
+            if create_bounding_box:
+                df = df[df.apply(lambda x: isin_box(x['firstBlip_lat'], x['firstBlip_lng'], bounding_box), axis=1)]
+            else:  # if given polygon path
+                df = df[df.apply(lambda x: is_in_polygon(x['firstBlip_lng'], x['firstBlip_lat'], polygon_fname), axis=1)]
             df['action'] = file_name.split(sep='_')[0]
 
             results_df = results_df.append(df)
