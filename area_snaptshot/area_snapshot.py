@@ -13,7 +13,7 @@ import logging
 ACTIVITIES_FILES = ['mooring.csv.gz', 'drifting.csv.gz', 'port_calls.csv.gz', 'anchoring.csv.gz']
 
 VESSELS_RELEVANT_COLS = ['_id', 'class_calc', 'subclass_documented', 'built_year', 'name', 'deadweight', 'size', 'age',
-                         'max_draught', 'grosstonage', 'flag']
+                         'max_draught', 'grosstonnage', 'flag']
 
 
 def extract_coordinates(df, col='firstBlip'):
@@ -60,7 +60,7 @@ def load_and_process_polygons_file(polygons_file_path, area_geohash):
     return polygons_df
 
 
-def main(lat, lng, import_path, export_path, distance=100, debug=True):
+def main(lat, lng, import_path, export_path, distance=100, debug=True, ef_mac=False):
 
     """
     This code will create an snapshot of a area for a given location and distance
@@ -83,40 +83,56 @@ def main(lat, lng, import_path, export_path, distance=100, debug=True):
     MAP_CONFIG['config']['mapState']['latitude'] = lat
     MAP_CONFIG['config']['mapState']['longitude'] = lng
 
-    results_list = []
+    results_df = pd.DataFrame()
 
     bounding_box = get_bounding_box(lat, lng, distance)
 
     area_geohash = Geohash.encode(lat, lng, 2)
 
-    files_list = os.listdir(import_path)
-
     nrows = 10000 if debug else None  # 10K rows per file if debug mode == True
-
-    vessels_df = pd.read_csv(os.path.join(import_path, 'vessels.csv.gz'), compression='gzip',
-                             usecols=VESSELS_RELEVANT_COLS)
-
-    vessels_df = vessels_df.add_prefix('vessel_')
 
     polygons_file_path = os.path.join(import_path, 'polygons.json')
     polygons_df = load_and_process_polygons_file(polygons_file_path, area_geohash)
 
-    for file_name in files_list:
+    if ef_mac:
+        files_list = ['anchoring_df_full.pkl', 'mooring_df_full.pkl', 'drifting_df_full.pkl']
+        vessels_df = pd.read_json(os.path.join(import_path, 'vessels.json'), orient='index')
+        vessels_df = vessels_df[VESSELS_RELEVANT_COLS]
+        vessels_df['vessel__id'] = vessels_df.index
 
-        file_path = os.path.join(import_path, file_name)
+    else:
+        files_list = os.listdir(import_path)
+        vessels_df = pd.read_csv(os.path.join(import_path, 'vessels.csv.gz'), compression='gzip',
+                             usecols=VESSELS_RELEVANT_COLS)
 
-        if file_name in ACTIVITIES_FILES:
-            logging.info(f'loading file {file_name}...')
-            df = pd.read_csv(file_path, compression='gzip', nrows=nrows)
-            df = extract_coordinates(df, 'firstBlip')
+    vessels_df = vessels_df.add_prefix('vessel_')
+
+    if ef_mac:  # TODO: generalize code in a better way
+
+        for file_name in files_list:
+            df = pd.read_pickle(file_name)
             df = df[['_id', 'vesselId', 'firstBlip_lat', 'firstBlip_lng']]
 
             df = df[df.apply(lambda x: isin_box(x['firstBlip_lat'], x['firstBlip_lng'], bounding_box), axis=1)]
-            df['action'] = file_name.split('.')[0]
+            df['action'] = file_name.split(sep='_')[0]
 
-            results_list.append(df)
+            results_df = results_df.append(df)
+    else:
 
-    results_df = pd.concat(results_list)
+        for file_name in files_list:
+
+            file_path = os.path.join(import_path, file_name)
+
+            if file_name in ACTIVITIES_FILES:
+                logging.info(f'loading file {file_name}...')
+                df = pd.read_csv(file_path, compression='gzip', nrows=nrows)
+                df = extract_coordinates(df, 'firstBlip')
+                df = df[['_id', 'vesselId', 'firstBlip_lat', 'firstBlip_lng']]
+
+                df = df[df.apply(lambda x: isin_box(x['firstBlip_lat'], x['firstBlip_lng'], bounding_box), axis=1)]
+                df['action'] = file_name.split('.')[0]
+
+                results_df = results_df.append(df)
 
     results_df = results_df.merge(vessels_df, left_on='vesselId', right_on='vessel__id').drop('vessel__id', axis=1)
 
