@@ -5,7 +5,8 @@ import fire
 import pandas as pd
 import datetime
 import geopandas as gpd
-from shapely.geometry import shape
+import json
+from shapely.geometry import shape, Point
 import Geohash
 from keplergl import KeplerGl
 import logging
@@ -28,6 +29,19 @@ def extract_coordinates(df, col='firstBlip'):
     df[[col+'_lng', col+'_lat']] = df[col].apply(eval).apply(lambda x: x['geometry']['coordinates']).apply(pd.Series)
 
     return df
+
+def is_in_polygon(lng, lat, polygon):
+    """
+    checks if a point is inside a polygon
+    :param lng: long of point
+    :param lat: latitude of point
+    :param polygon: the polygon for which to test if the point is inside of. can take manually defined in geojson.io
+    :return: boolean
+    """
+    point = Point(lng,lat)
+    for feature in polygon['features']:
+        poly = shape(feature['geometry'])
+    return poly.contains(point)
 
 
 def today_str():
