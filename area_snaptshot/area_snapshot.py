@@ -24,7 +24,9 @@ def extract_coordinates(df, col='firstBlip'):
     :return:
     """
 
-    df[[col+'_lng', col+'_lat']] = df[col].apply(eval).apply(lambda x: x['geometry']['coordinates']).apply(pd.Series)
+    if col+'_lng' not in df.columns and col+'_lat' not in df.columns:
+
+        df[[col+'_lng', col+'_lat']] = df[col].apply(eval).apply(lambda x: x['geometry']['coordinates']).apply(pd.Series)
 
     return df
 
@@ -127,6 +129,6 @@ def main(lat, lng, import_path, export_path, distance=100, debug=True):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     fire.Fire(main)
 
