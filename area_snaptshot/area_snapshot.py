@@ -12,7 +12,8 @@ import logging
 
 ACTIVITIES_FILES = ['mooring.csv.gz', 'drifting.csv.gz', 'port_calls.csv.gz', 'anchoring.csv.gz']
 
-VESSELS_RELEVANT_COLS = ['_id', 'class_calc', 'subclass_documented', 'built_year', 'name', 'deadweight', 'size', 'age']
+VESSELS_RELEVANT_COLS = ['_id', 'class_calc', 'subclass_documented', 'built_year', 'name', 'deadweight', 'size', 'age',
+                         'max_draught', 'grosstonage', 'flag']
 
 
 def extract_coordinates(df, col='firstBlip'):
