@@ -26,7 +26,11 @@ def extract_coordinates(df, col='firstBlip'):
 
     if col+'_lng' not in df.columns and col+'_lat' not in df.columns:
 
-        df[[col+'_lng', col+'_lat']] = df[col].apply(eval).apply(lambda x: x['geometry']['coordinates']).apply(pd.Series)
+        logging.info(f'extracting coordinates for {col}...')
+        coordinates_df = df[col].dropna().apply(eval).apply(lambda x: x['geometry']['coordinates']).apply(pd.Series)
+        coordinates_df = coordinates_df.rename(columns={0: col+'_lng', 1: col+'_lat'})
+
+        df = df.merge(coordinates_df, left_index=True, right_index=True, how='left')
 
     return df
 
@@ -40,7 +44,7 @@ def today_str():
     return today
 
 
-def load_and_process_polygons_file(polygons_file_path, area_geohash):
+def load_and_process_polygons_file(polygons_file_path, area_geohash=None):
 
     """
     a function that loading the polygons file, converting to GeoPandas, and drops  polygons out of area snapshot
@@ -53,10 +57,13 @@ def load_and_process_polygons_file(polygons_file_path, area_geohash):
     logging.info(f'loading file polygons...')
     polygons_df = pd.read_json(polygons_file_path, orient='index')
     polygons_df = gpd.GeoDataFrame(polygons_df)  # convert to GeoPandas
+    polygons_df['polygon_id'] = polygons_df.index
+    polygons_df = polygons_df.drop('_id', axis=1).reset_index(drop=True)
     polygons_df['geometry'] = polygons_df['geometry'].apply(shape)  # convert to shape object
     polygons_df['centroid'] = polygons_df['geometry'].centroid  # get polygons centroid
     polygons_df['geohash'] = polygons_df['centroid'].apply(lambda x: Geohash.encode(x.y, x.x, 2))  # resolve geohash per polygon centroid
-    polygons_df = polygons_df[polygons_df['geohash'] == area_geohash].drop('centroid', axis=1)  # drop polygons out of geohash
+    if area_geohash:
+        polygons_df = polygons_df[polygons_df['geohash'] == area_geohash].drop('centroid', axis=1)  # drop polygons out of geohash
 
     return polygons_df
 
@@ -109,8 +116,8 @@ def main(lat, lng, import_path, export_path, distance=100, debug=True):
         if file_name in ACTIVITIES_FILES:
             logging.info(f'loading file {file_name}...')
             df = pd.read_csv(file_path, compression='gzip', nrows=nrows)
-            df = extract_coordinates(df, 'firstBlip')
-            df = df[['_id', 'vesselId', 'firstBlip_lat', 'firstBlip_lng']]
+            df = extract_coordinates(df, 'lastBlip')
+            # df = df[['_id', 'vesselId', 'firstBlip_lat', 'firstBlip_lng']]
 
             df = df[df.apply(lambda x: isin_box(x['firstBlip_lat'], x['firstBlip_lng'], bounding_box), axis=1)]
             df['action'] = file_name.split('.')[0]
