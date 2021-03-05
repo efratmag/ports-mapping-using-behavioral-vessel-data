@@ -15,7 +15,8 @@ from geo_utils import geo_dist
 
 ACTIVITIES_FILES = ['mooring.csv.gz', 'drifting.csv.gz', 'port_calls.csv.gz', 'anchoring.csv.gz']
 
-VESSELS_RELEVANT_COLS = ['_id', 'class_calc', 'subclass_documented', 'built_year', 'name', 'deadweight', 'size', 'age']
+VESSELS_RELEVANT_COLS = ['_id', 'class_calc', 'subclass_documented', 'built_year',
+                         'name', 'deadweight', 'draught', 'size', 'age']
 
 
 def find_intersection_with_polygons(df, polygons_df, col_prefix):
@@ -99,6 +100,23 @@ def main(import_path, export_path, debug=True):
 
     shore_lines = load_and_process_shorelines_df(shorelines_file_path)
 
+    logging.info(f'loading file vessels...')
+    vessels_df = pd.read_csv(os.path.join(import_path, 'vessels.csv.gz'), compression='gzip',
+                             usecols=VESSELS_RELEVANT_COLS, index_col='_id')
+
+    vessels_size = vessels_df[['size']].dropna()
+    vessels_size['size_category'] = pd.qcut(vessels_size['size'], 3, labels=["small", "medium", "big"])
+    vessels_df = vessels_df.merge(vessels_size['size_category'], left_index=True, right_index=True, how='left')
+
+    vessels_df['class_calc_updated'] = vessels_df['class_calc'].fillna('Other').replace({'MilitaryOrLaw': 'Other',
+                                                                                 'Pleasure': 'Other',
+                                                                                 'Unknown': 'Other',
+                                                                                 'HighSpeedCraft': 'Other'})
+
+    vessels_df = vessels_df.add_prefix('vessel_')
+
+    results_list = []
+
     for file_name in files_list:
 
         file_path = os.path.join(import_path, file_name)
@@ -112,10 +130,20 @@ def main(import_path, export_path, debug=True):
             df = find_intersection_with_polygons(df, polygons_df, 'firstBlip')
             df = find_intersection_with_polygons(df, polygons_df, 'lastBlip')
 
-            df = calc_distance_from_shore(df, shore_lines, 'firstBlip')
-            df = calc_distance_from_shore(df, shore_lines, 'lastBlip')
+            df['firstBlip_within_polygon'] = df['firstBlip_polygon_id'].isna()
+            df['lastBlip_within_polygon'] = df['lastBlip_polygon_id'].isna()
+
+            # df = calc_distance_from_shore(df, shore_lines, 'firstBlip')
+            # df = calc_distance_from_shore(df, shore_lines, 'lastBlip')
+            logging.info(f'merging vessels data...')
+            df = df.merge(vessels_df, left_on='vesselId', right_index=True)
+
+            results_list.append(df)
 
             df.to_csv(os.path.join(export_path, file_name), index=False, compression='gzip')
+
+    results_df = pd.concat(results_list)
+    results_df.to_csv(os.path.join(export_path, 'all_activities.csv.gz'), index=False, compression='gzip')
 
 
 if __name__ == "__main__":
