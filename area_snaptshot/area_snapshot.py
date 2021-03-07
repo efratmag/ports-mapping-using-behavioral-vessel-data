@@ -68,7 +68,7 @@ def load_and_process_polygons_file(polygons_file_path, area_geohash=None):
     return polygons_df
 
 
-def main(lat, lng, import_path, export_path, distance=100, debug=True):
+def main(import_path, export_path, polygon_import_path=None, lat=None, lng=None, distance=100, debug=True):
 
     """
     This code will create an snapshot of a area for a given location and distance
@@ -77,9 +77,16 @@ def main(lat, lng, import_path, export_path, distance=100, debug=True):
     :param import_path: path to directory with all relevant files
     :param export_path: path in which the output will be exported
     :param distance: bounding box length in Km
+    :param polygon_import_path: an alternative for the lat, lng - passing a geojson file with the polygon area
     :param debug: if True, only a first 10K rows of each file will be processed
     :return:
     """
+
+    assert polygon_import_path or (lat and lng),  "polygon_import_path or lat,lng wasn't passed"
+
+    if polygon_import_path and (lat and lng):
+        logging.warning('both polygon_import_path and lat,lng was provided, '
+                        'will generate the report in respect to the polygon')
 
     map_file_name = f'area_snapshot_{lat}_{lng}_{today_str()}.html'
 
@@ -87,13 +94,17 @@ def main(lat, lng, import_path, export_path, distance=100, debug=True):
 
     kepler_map = KeplerGl()
 
+    results_list = []
+    if polygon_import_path:
+        area_polygon = gpd.read_file(polygon_import_path).loc[0, 'geometry']
+        bounding_box = area_polygon.bounds
+        lat, lng = area_polygon.centroid.y, area_polygon.centroid.x
+    else:
+        bounding_box = get_bounding_box(lat, lng, distance)
+
     #  define the map center by the given coordinates
     MAP_CONFIG['config']['mapState']['latitude'] = lat
     MAP_CONFIG['config']['mapState']['longitude'] = lng
-
-    results_list = []
-
-    bounding_box = get_bounding_box(lat, lng, distance)
 
     area_geohash = Geohash.encode(lat, lng, 2)
 
@@ -136,6 +147,6 @@ def main(lat, lng, import_path, export_path, distance=100, debug=True):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     fire.Fire(main)
 
