@@ -90,3 +90,18 @@ def is_in_polygon(lng, lat, polygon_fname):
 
     return verdict
 
+
+def is_in_polygon_features(df):
+    df['firstBlip_in_polygon'] = df['firstBlip_polygon_id'].notna()
+
+    conditions = [
+        (df['firstBlip_in_polygon'] == True) & (df['lastBlip_polygon_id'].isna() == True),
+        (df['firstBlip_in_polygon'] == False) & (df['lastBlip_polygon_id'].isna() == True),
+        (df['lastBlip_polygon_id'].isna() == False)
+    ]
+
+    choices = ['not_ended', 'False', 'True']
+    df['lastBlip_in_polygon'] = np.select(conditions, choices)
+
+    return df
+
