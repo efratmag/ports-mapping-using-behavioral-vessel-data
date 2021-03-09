@@ -1,6 +1,6 @@
 import math
 import json
-from shapely.geometry import shape, Point, geometry
+from shapely.geometry import shape, Point, MultiLineString
 from scipy.spatial import ConvexHull, Delaunay
 import numpy as np
 from shapely.ops import cascaded_union, polygonize
@@ -166,7 +166,7 @@ def alpha_shape(points, alpha, only_outer=True):
             add_edge(edges, edge_points, coords, ib, ic)
             add_edge(edges, edge_points, coords, ic, ia)
 
-    m = geometry.MultiLineString(edge_points)
+    m = MultiLineString(edge_points)
     triangles = list(polygonize(m))
     return cascaded_union(triangles), edge_points, edges
 
