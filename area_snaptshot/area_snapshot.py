@@ -62,6 +62,8 @@ def load_and_process_polygons_file(polygons_file_path, area_geohash=None):
     polygons_df['geometry'] = polygons_df['geometry'].apply(shape)  # convert to shape object
     polygons_df['centroid'] = polygons_df['geometry'].centroid  # get polygons centroid
     polygons_df['geohash'] = polygons_df['centroid'].apply(lambda x: Geohash.encode(x.y, x.x, 2))  # resolve geohash per polygon centroid
+    polygons_df['polygon_area_type'] = [d.get('areaType') for d in polygons_df.properties]  # add areaType column from nested dict
+
     if area_geohash:
         polygons_df = polygons_df[polygons_df['geohash'] == area_geohash].drop('centroid', axis=1)  # drop polygons out of geohash
 

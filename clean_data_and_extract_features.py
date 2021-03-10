@@ -6,7 +6,7 @@ from area_snaptshot.area_snapshot import load_and_process_polygons_file, extract
 import os
 import fire
 import pandas as pd
-
+import numpy as np
 import geopandas as gpd
 
 import logging
@@ -19,35 +19,38 @@ VESSELS_RELEVANT_COLS = ['_id', 'class_calc', 'subclass_documented', 'built_year
                          'name', 'deadweight', 'draught', 'size', 'age']
 
 
-def find_intersection_with_polygons(df, polygons_df, col_prefix):
+def find_intersection_with_polygons(df, polygons_df, col_prefix, force_enrichment=True):
 
-    logging.debug(f'converting to Point - {col_prefix}...')
+    logging.info(f'converting to Point - {col_prefix}...')
 
-    if col_prefix+'_polygon_id' not in df.columns:
+    if col_prefix+'_polygon_id' not in df.columns or force_enrichment:
 
         df['geometry'] = df.apply(lambda x: Point(x[col_prefix + '_lng'], x[col_prefix + '_lat']) if not pd.isna(
             x[col_prefix + '_lat']) else None, axis=1)
 
         df = gpd.GeoDataFrame(df)
 
-        logging.debug(f'performing spatial join - {col_prefix}...')
-        df = gpd.sjoin(df, polygons_df[['polygon_id', 'geometry']], how='left').drop('index_right', axis=1)
+        logging.info(f'performing spatial join - {col_prefix}...')
+        df = gpd.sjoin(df, polygons_df[['polygon_id', 'polygon_area_type', 'geometry'
+                                        ]], how='left').drop('index_right', axis=1)
 
-        df['polygon_id'] = df['polygon_id'].astype(str)
+        df['polygon_id'], df['polygon_area_type'] = df['polygon_id'].astype(str), df['polygon_area_type'].astype(str)
 
-        logging.debug(f'aggregating polygons - {col_prefix}...')
-        merged_polygons = df.groupby('_id', as_index=False).agg({'polygon_id': ', '.join}).replace({'nan': None})
+        logging.info(f'aggregating polygons - {col_prefix}...')
+        merged_polygons = df.groupby('_id', as_index=False).agg({'polygon_id': ', '.join,
+                                                                 'polygon_area_type': ', '.join}).replace({'nan': None})
 
-        df = df.drop_duplicates('_id').drop('polygon_id', axis=1)
+        df = df.drop_duplicates('_id').drop(['polygon_id', 'polygon_area_type'], axis=1)
         df = df.merge(merged_polygons, on='_id')
-        df = df.rename(columns={'polygon_id': col_prefix + '_polygon_id'})
+        df = df.rename(columns={'polygon_id': col_prefix + '_polygon_id',
+                                'polygon_area_type': col_prefix + '_polygon_area_type'})
 
     return df
 
 
 def calc_distance_from_shore(df, shore_lines, col="firstBlip"):
 
-    logging.debug(f'Calc Distance From Shore - {col}...')
+    logging.info(f'Calc Distance From Shore - {col}...')
 
     if col+'_closer_shore_lat' not in df.columns:
 
@@ -77,6 +80,21 @@ def load_and_process_shorelines_df(shorelines_file_path):
     shore_lines = ops.linemerge(shore_lines_df['geometry'].values)
 
     return shore_lines
+
+
+def is_in_polygon_features(df):
+
+    df["firstBlip_in_polygon"] = df["firstBlip_polygon_id"].notna()
+
+    conditions = [
+        (df["firstBlip_in_polygon"] == True) & (df['lastBlip_polygon_id'].isna() == True),
+        (df["firstBlip_in_polygon"] == False) & (df['lastBlip_polygon_id'].isna() == True),
+        (df["lastBlip_polygon_id"].isna() == False)
+    ]
+    choices = ["not_ended", "False", "True"]
+    df["lastBlip_in_polygon"] = np.select(conditions, choices)
+
+    return df
 
 
 def main(import_path, export_path, debug=True):
@@ -109,9 +127,9 @@ def main(import_path, export_path, debug=True):
     vessels_df = vessels_df.merge(vessels_size['size_category'], left_index=True, right_index=True, how='left')
 
     vessels_df['class_calc_updated'] = vessels_df['class_calc'].fillna('Other').replace({'MilitaryOrLaw': 'Other',
-                                                                                 'Pleasure': 'Other',
-                                                                                 'Unknown': 'Other',
-                                                                                 'HighSpeedCraft': 'Other'})
+                                                                                         'Pleasure': 'Other',
+                                                                                         'Unknown': 'Other',
+                                                                                         'HighSpeedCraft': 'Other'})
 
     vessels_df = vessels_df.add_prefix('vessel_')
 
@@ -124,17 +142,18 @@ def main(import_path, export_path, debug=True):
         if file_name in ACTIVITIES_FILES:
             logging.info(f'loading file {file_name}...')
             df = pd.read_csv(file_path, compression='gzip', nrows=nrows)
+
             df = extract_coordinates(df, 'firstBlip')
             df = extract_coordinates(df, 'lastBlip')
 
             df = find_intersection_with_polygons(df, polygons_df, 'firstBlip')
             df = find_intersection_with_polygons(df, polygons_df, 'lastBlip')
 
-            df['firstBlip_within_polygon'] = df['firstBlip_polygon_id'].isna()
-            df['lastBlip_within_polygon'] = df['lastBlip_polygon_id'].isna()
+            df = is_in_polygon_features(df)
 
-            # df = calc_distance_from_shore(df, shore_lines, 'firstBlip')
+            # df = calc_distance_from_shore(df, shore_lines, 'firstBlip') # TODO: improve logic / get updated layer
             # df = calc_distance_from_shore(df, shore_lines, 'lastBlip')
+
             logging.info(f'merging vessels data...')
             df = df.merge(vessels_df, left_on='vesselId', right_index=True)
 
