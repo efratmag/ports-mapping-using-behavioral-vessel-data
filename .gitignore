@@ -1,7 +1,5 @@
 
 *.xml
-.idea/modules.xml
-*.xml
 *.iml
 *.pyc
 /README.md
