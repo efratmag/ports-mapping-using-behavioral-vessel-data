@@ -1,0 +1,4 @@
+outs:
+- md5: a887ca83fe4109c861403179782e1787
+  size: 964586545
+  path: all_activities.csv.gz
