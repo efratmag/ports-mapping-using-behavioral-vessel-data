@@ -5,6 +5,8 @@ from scipy.spatial import ConvexHull, Delaunay
 import numpy as np
 from shapely.ops import cascaded_union, polygonize
 
+from scipy.spatial.distance import pdist, squareform
+
 
 R = 6378.1  # Radius of the Earth
 brng_n_e = 1.0472  # 60 degrees converted to radians.
@@ -34,6 +36,24 @@ def calc_dest_point(lat, lng, brng, d=15):
     dest_lng = math.degrees(dest_lng)
 
     return dest_lat, dest_lng
+
+
+def haversine(lonlat1, lonlat2):
+    """
+    Calculate the great circle distance between two points
+    on the earth (specified in decimal degrees)
+    """
+    # convert decimal degrees to radians
+    lat1, lon1 = lonlat1
+    lat2, lon2 = lonlat2
+    lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
+    # haversine formula
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    c = 2 * math.asin(math.sqrt(a))
+    
+    return c * R
 
 
 def get_bounding_box(lat, lng, d=15):
