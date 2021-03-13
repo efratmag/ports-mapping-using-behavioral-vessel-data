@@ -1,11 +1,9 @@
 import math
 import json
 from shapely.geometry import shape, Point, MultiLineString
-from scipy.spatial import ConvexHull, Delaunay
+from scipy.spatial import Delaunay
 import numpy as np
 from shapely.ops import cascaded_union, polygonize
-
-from scipy.spatial.distance import pdist, squareform
 
 
 R = 6378.1  # Radius of the Earth
@@ -189,4 +187,5 @@ def alpha_shape(points, alpha, only_outer=True):
     m = MultiLineString(edge_points)
     triangles = list(polygonize(m))
     return cascaded_union(triangles), edge_points, edges
+
 
