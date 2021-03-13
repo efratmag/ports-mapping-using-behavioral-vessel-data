@@ -1,4 +1,4 @@
-from pyports.area_snaptshot.map_config import MAP_CONFIG
+from pyports.area_snaptshot.map_configs import MAP_CONFIG_SNAPSHOT
 from pyports.geo_utils import get_bounding_box, isin_box
 import os
 import fire
@@ -105,8 +105,8 @@ def main(import_path, export_path, polygon_import_path=None, lat=None, lng=None,
         bounding_box = get_bounding_box(lat, lng, distance)
 
     #  define the map center by the given coordinates
-    MAP_CONFIG['config']['mapState']['latitude'] = lat
-    MAP_CONFIG['config']['mapState']['longitude'] = lng
+    MAP_CONFIG_SNAPSHOT['config']['mapState']['latitude'] = lat
+    MAP_CONFIG_SNAPSHOT['config']['mapState']['longitude'] = lng
 
     area_geohash = Geohash.encode(lat, lng, 2)
 
@@ -145,7 +145,7 @@ def main(import_path, export_path, polygon_import_path=None, lat=None, lng=None,
     kepler_map.add_data(polygons_df, 'polygons')
 
     results_df.to_csv(os.path.join(export_path, vessels_file_name), index=False)
-    kepler_map.save_to_html(file_name=os.path.join(export_path, map_file_name), config=MAP_CONFIG)
+    kepler_map.save_to_html(file_name=os.path.join(export_path, map_file_name), config=MAP_CONFIG_SNAPSHOT)
 
 
 if __name__ == "__main__":
