@@ -93,31 +93,34 @@ def main(import_path, export_path, ports=False, col='firstBlip', dbscan_eps=2, d
 
     logging.info(f'generating polygons...')
     for label in activities_df[(activities_df['labels'] != 'cluster_-1')]['labels'].unique():
+        try:
+            cluster_df = activities_df[activities_df['labels'] == label]
 
-        cluster_df = activities_df[activities_df['labels'] == label]
+            anchoring = cluster_df[(cluster_df['activity'] == 'anchoring')]
+            wa_poly = points_to_polygon(anchoring, outliers_std, col, alpha)
+            poly_list.append({'cluster': label,
+                              'type': 'Waiting Area',
+                              'geometry': wa_poly,
+                              'area_sqmi': calc_polygon_area_sqmi(wa_poly),
+                              'mean_duration (hours)': anchoring['duration'].mean()})
 
-        anchoring = cluster_df[(cluster_df['activity'] == 'anchoring')]
-        wa_poly = points_to_polygon(anchoring, outliers_std, col, alpha)
-        poly_list.append({'cluster': label,
-                          'type': 'Waiting Area',
-                          'geometry': wa_poly,
-                          'area_sqmi': calc_polygon_area_sqmi(wa_poly),
-                          'mean_duration (hours)': anchoring['duration'].mean()})
+            if ports:
+                try:
+                    mooring = cluster_df[(cluster_df['activity'] == 'mooring')]
+                    mooring = mooring[~mooring['geometry'].within(wa_poly)]
+                    port_poly = points_to_polygon(mooring, outliers_std / 3, col, alpha)
 
-        if ports:
-            try:
-                mooring = cluster_df[(cluster_df['activity'] == 'mooring')]
-                mooring = mooring[~mooring['geometry'].within(wa_poly)]
-                port_poly = points_to_polygon(mooring, 1.1, col, alpha)
+                    poly_list.append({'cluster': label,
+                                      'type': 'Port',
+                                      'geometry': port_poly,
+                                      'area_sqmi': calc_polygon_area_sqmi(port_poly),
+                                      'mean_duration (hours)': mooring['duration'].mean()})
 
-                poly_list.append({'cluster': label,
-                                  'type': 'Port',
-                                  'geometry': port_poly,
-                                  'area_sqmi': calc_polygon_area_sqmi(port_poly),
-                                  'mean_duration (hours)': mooring['duration'].mean()})
+                except Exception as e:
+                    logging.info(f'failed to generate polygons for port {label}, reason - {e}')
 
-            except Exception as e:
-                logging.info(f'failed to generate polygons for port {label}, reason - {e}')
+        except Exception as e:
+            logging.info(f'failed to generate polygons for wa {label}, reason - {e}')
 
     polygons_df = gpd.GeoDataFrame(poly_list)
 
