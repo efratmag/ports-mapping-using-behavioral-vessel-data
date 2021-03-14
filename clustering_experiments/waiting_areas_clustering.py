@@ -101,7 +101,7 @@ def main(import_path, export_path, ports=False, col='firstBlip', dbscan_eps=2, d
             poly_list.append({'cluster': label,
                               'type': 'Waiting Area',
                               'geometry': wa_poly,
-                              'area_sqmi': calc_polygon_area_sqmi(wa_poly),
+                              'area_sqkm': calc_polygon_area_sqmi(wa_poly),
                               'mean_duration (hours)': anchoring['duration'].mean()})
 
             if ports:
@@ -113,7 +113,7 @@ def main(import_path, export_path, ports=False, col='firstBlip', dbscan_eps=2, d
                     poly_list.append({'cluster': label,
                                       'type': 'Port',
                                       'geometry': port_poly,
-                                      'area_sqmi': calc_polygon_area_sqmi(port_poly),
+                                      'area_sqkm': calc_polygon_area_sqmi(port_poly),
                                       'mean_duration (hours)': mooring['duration'].mean()})
 
                 except Exception as e:
