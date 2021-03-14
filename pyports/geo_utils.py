@@ -3,12 +3,18 @@ import json
 from shapely.geometry import shape, Point, MultiLineString
 from scipy.spatial import Delaunay
 import numpy as np
-from shapely.ops import cascaded_union, polygonize
+from shapely import ops
 
 
 R = 6378.1  # Radius of the Earth
-brng_n_e = 1.0472  # 60 degrees converted to radians.
-brng_s_w = 4.18879  # 240 degrees converted to radians.
+SQUARE_FOOT_IN_SQUARE_METRE = 10.7639
+
+BRNG_N_E = 1.0472  # 60 degrees converted to radians.
+BRNG_S_W = 4.18879  # 240 degrees converted to radians.
+
+METERS_IN_DEG = 2 * math.pi * 6371000.0 / 360
+
+UNIT_RESOLVER = {'sqmi': 1609.34, 'sqkm': 1000.0}
 
 
 def calc_dest_point(lat, lng, brng, d=15):
@@ -64,8 +70,8 @@ def get_bounding_box(lat, lng, d=15):
     :return:
     """
 
-    lat_n_e, lng_n_e = calc_dest_point(lat, lng, brng_n_e, d=d)
-    lat_s_w, lng_s_w = calc_dest_point(lat, lng, brng_s_w, d=d)
+    lat_n_e, lng_n_e = calc_dest_point(lat, lng, BRNG_N_E, d=d)
+    lat_s_w, lng_s_w = calc_dest_point(lat, lng, BRNG_S_W, d=d)
 
     return lng_s_w, lat_s_w, lng_n_e, lat_n_e
 
@@ -185,7 +191,29 @@ def alpha_shape(points, alpha, only_outer=True):
             add_edge(edges, edge_points, coords, ic, ia)
 
     m = MultiLineString(edge_points)
-    triangles = list(polygonize(m))
-    return cascaded_union(triangles), edge_points, edges
+    triangles = list(ops.polygonize(m))
+    return ops.cascaded_union(triangles), edge_points, edges
 
 
+def polygon_to_meters(polygon):
+
+    avg_lat = polygon.centroid.y
+
+    def shape_to_meters(lat, lng, avg_lat):
+        x = lng * math.cos(math.radians(avg_lat)) * METERS_IN_DEG
+        y = lat * METERS_IN_DEG
+        return x, y
+
+    def to_meters(lng, lat):
+        return shape_to_meters(lat, lng, avg_lat)
+
+    return shape(ops.transform(to_meters, polygon))
+
+
+def calc_polygon_area_sqmi(polygon, unit='sqkm'):
+
+    polygon = polygon_to_meters(polygon)
+    polygon_area = np.sqrt(polygon.area) / UNIT_RESOLVER[unit]
+    polygon_area *= polygon_area
+
+    return polygon_area
