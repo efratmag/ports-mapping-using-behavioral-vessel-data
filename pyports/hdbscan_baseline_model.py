@@ -5,11 +5,12 @@ import folium
 from folium.vector_layers import CircleMarker
 from colour import Color
 from shapely.geometry import Point, MultiPoint, shape, Polygon
+from shapely.ops import transform
 import geopandas as gpd
 import pickle
 import logging
 import fire
-from keplergl import KeplerGl
+from pyports.geo_utils import is_in_polygon
 
 
 FILE_NAME = 'df_for_clustering.csv'  # df with lat lng of all anchoring activities
@@ -70,27 +71,37 @@ def show_cluster_map(cluster_id, clusterer, locations):
     return my_map
 
 
-def main(path, df_for_clustering_fname):
+def flip(x, y):
+    """Flips the x and y coordinate values"""
+    return y, x
 
-    min_cluster_size = 15
-    min_samples = 1
+
+def main(path, df_for_clustering_fname, hdbscan_min_cluster_zise=15, hdbscan_min_samples=1, polygon_fname=None, sub_area_name=None):
+
 
     # import df
     df = pd.read_csv(os.path.join(path, df_for_clustering_fname))
     df = df.drop_duplicates(subset=['firstBlip_lat', 'firstBlip_lng']) # drop duplicates
+    if polygon_fname: # take only area of the data, e.g. 'maps/mediterranean.geojson'
+        df = df[df.apply(lambda x: is_in_polygon(x['firstBlip_lng'], x['firstBlip_lat'], polygon_fname), axis=1)]
+
     locations = df[['firstBlip_lat', 'firstBlip_lng']].to_numpy()
 
     # clustering
-    clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size,
-                                min_samples=min_samples,
+    clusterer = hdbscan.HDBSCAN(min_cluster_size=hdbscan_min_cluster_zise,
+                                min_samples=hdbscan_min_samples,
                                 metric='euclidean')
     clusterer.fit(locations)
 
     clusters = clusterer.labels_
 
-    clust_polygons = polygenize_clusters(locations, clusters)
+    clust_polygons = polygenize_clusters(locations, clusterer)
 
     geo_df_clust_polygons = gpd.GeoDataFrame(clust_polygons.loc[:, ['id', 'num_points', 'geometry']])
+
+    # fix lat lng #TODO: do it right from the start
+    for poly in range(geo_df_clust_polygons.shape[0]):
+        geo_df_clust_polygons.loc[poly, 'geometry'] = transform(flip, geo_df_clust_polygons.loc[poly, 'geometry'])
 
     # save model and files
     pickle.dump(clusterer, open('models/hdbscan_15mcs_1ms'), 'wb')
