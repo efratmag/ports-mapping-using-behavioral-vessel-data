@@ -405,8 +405,8 @@ MAP_CONFIG_CLUSTERING = {
           "id": "0sd7ko",
           "type": "point",
           "config": {
-            "dataId": "anchoring_clusters",
-            "label": "anchoring_clusters",
+            "dataId": "clusters",
+            "label": "clusters",
             "color": [
               136,
               87,
@@ -585,7 +585,7 @@ MAP_CONFIG_CLUSTERING = {
                 "format": None
               }
             ],
-            "anchoring_clusters": [
+            "clusters": [
               {
                 "name": "Unnamed: 0",
                 "format": None
