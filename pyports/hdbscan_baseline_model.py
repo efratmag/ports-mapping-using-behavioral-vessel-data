@@ -88,14 +88,13 @@ def main(path, df_for_clustering_fname):
 
     clusters = clusterer.labels_
 
-    pickle.dump(clusterer, open('models/hdbscan_15mcs_1ms'), 'wb'))
-
     clust_polygons = polygenize_clusters(locations, clusters)
-
-    clust_polygons.to_csv(os.path.join(path, 'clust_polygons.csv'))
 
     geo_df_clust_polygons = gpd.GeoDataFrame(clust_polygons.loc[:, ['id', 'num_points', 'geometry']])
 
+    # save model and files
+    pickle.dump(clusterer, open('models/hdbscan_15mcs_1ms'), 'wb')
+    clust_polygons.to_csv(os.path.join(path, 'clust_polygons.csv'))
     geo_df_clust_polygons.to_file(os.path.join(path, 'hdbscan_polygons.json'), driver="GeoJSON")
 
 
