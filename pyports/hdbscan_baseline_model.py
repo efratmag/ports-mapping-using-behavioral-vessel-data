@@ -7,6 +7,7 @@ import geopandas as gpd
 import pickle
 import logging
 import fire
+from pyports.polygon_intersection import polygon_intersection
 from pyports.geo_utils import is_in_polygon, calc_polygon_area_sq_unit
 
 
@@ -81,10 +82,12 @@ def main(path, df_for_clustering_fname, hdbscan_min_cluster_zise=15, hdbscan_min
     for poly in range(geo_df_clust_polygons.shape[0]):
         geo_df_clust_polygons.loc[poly, 'geometry'] = transform(flip, geo_df_clust_polygons.loc[poly, 'geometry'])
 
+    geo_df_clust_polygons = polygon_intersection(geo_df_clust_polygons)
+
     # save model and files
     #pickle.dump(clusterer, open('models/hdbscan_15mcs_1ms'), 'wb')
     #clust_polygons.to_csv(os.path.join(path, 'clust_polygons.csv'))
-    #geo_df_clust_polygons.to_file(os.path.join(path, 'hdbscan_polygons.json'), driver="GeoJSON")
+    geo_df_clust_polygons.to_file(os.path.join(path, 'hdbscan_polygons.json'), driver="GeoJSON")
 
 
 if __name__ == "__main__":
