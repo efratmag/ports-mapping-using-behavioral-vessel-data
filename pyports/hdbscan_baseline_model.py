@@ -93,8 +93,6 @@ def main(path, df_for_clustering_fname, hdbscan_min_cluster_zise=15, hdbscan_min
                                 metric='euclidean')
     clusterer.fit(locations)
 
-    clusters = clusterer.labels_
-
     clust_polygons = polygenize_clusters(locations, clusterer)
 
     geo_df_clust_polygons = gpd.GeoDataFrame(clust_polygons.loc[:, ['id', 'num_points', 'geometry']])
