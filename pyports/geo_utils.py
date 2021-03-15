@@ -210,7 +210,7 @@ def polygon_to_meters(polygon):
     return shape(ops.transform(to_meters, polygon))
 
 
-def calc_polygon_area_sqmi(polygon, unit='sqkm'):
+def calc_polygon_area_sq_unit(polygon, unit='sqkm'):
 
     polygon = polygon_to_meters(polygon)
     polygon_area = np.sqrt(polygon.area) / UNIT_RESOLVER[unit]

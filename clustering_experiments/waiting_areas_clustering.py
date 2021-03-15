@@ -1,6 +1,6 @@
 from pyports.area_snaptshot.area_snapshot import today_str
 from pyports.area_snaptshot.map_configs import MAP_CONFIG_CLUSTERING
-from pyports.geo_utils import haversine, alpha_shape, calc_polygon_area_sqmi
+from pyports.geo_utils import haversine, alpha_shape, calc_polygon_area_sq_unit
 from scipy.spatial.distance import pdist, squareform
 from scipy.spatial import distance_matrix
 from sklearn.cluster import DBSCAN
@@ -101,7 +101,7 @@ def main(import_path, export_path, ports=False, col='firstBlip', dbscan_eps=2, d
             poly_list.append({'cluster': label,
                               'type': 'Waiting Area',
                               'geometry': wa_poly,
-                              'area_sqkm': calc_polygon_area_sqmi(wa_poly),
+                              'area_sqkm': calc_polygon_area_sq_unit(wa_poly),
                               'mean_duration (hours)': anchoring['duration'].mean()})
 
             if ports:
@@ -113,7 +113,7 @@ def main(import_path, export_path, ports=False, col='firstBlip', dbscan_eps=2, d
                     poly_list.append({'cluster': label,
                                       'type': 'Port',
                                       'geometry': port_poly,
-                                      'area_sqkm': calc_polygon_area_sqmi(port_poly),
+                                      'area_sqkm': calc_polygon_area_sq_unit(port_poly),
                                       'mean_duration (hours)': mooring['duration'].mean()})
 
                 except Exception as e:
