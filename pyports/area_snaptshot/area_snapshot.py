@@ -130,7 +130,6 @@ def main(import_path, export_path, polygon_import_path=None, lat=None, lng=None,
             logging.info(f'loading file {file_name}...')
             df = pd.read_csv(file_path, compression='gzip', nrows=nrows)
             df = extract_coordinates(df, 'lastBlip')
-            # df = df[['_id', 'vesselId', 'firstBlip_lat', 'firstBlip_lng']]
 
             df = df[df.apply(lambda x: isin_box(x['firstBlip_lat'], x['firstBlip_lng'], bounding_box), axis=1)]
             df['action'] = file_name.split('.')[0]
