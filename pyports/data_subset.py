@@ -18,9 +18,17 @@ tfr = pd.read_csv(os.path.join(PATH, FILE_NAME),
                   iterator=True)
 df = pd.concat(tfr, ignore_index=True)
 
-df_sub = df[df.activity=='anchoring']
+df_sub = df[df.activity == 'anchoring']
 
-df_for_clustering = df_sub.loc[:, ['firstBlip_lng', 'firstBlip_lat']]
+cols = ['_id', 'vesselId', 'startDate', 'endDate', 'duration', 'firstBlip_lng',
+       'firstBlip_lat', 'lastBlip_lng', 'lastBlip_lat', 'vessel_class_calc',
+       'vessel_subclass_documented', 'vessel_deadweight', 'vessel_size', 'vessel_draught', 'firstBlip_polygon_id',
+        'firstBlip_polygon_area_type', 'lastBlip_polygon_id', 'lastBlip_polygon_area_type',
+       'firstBlip_in_polygon', 'lastBlip_in_polygon', 'polygonId', 'polygonType']
+
+df_for_clustering = df_sub.loc[:, cols]
+
+#df_for_clustering = df_sub.loc[:, ['firstBlip_lng', 'firstBlip_lat']]
 
 df_for_clustering.to_csv(os.path.join(PATH, 'df_for_clustering.csv'))
 
