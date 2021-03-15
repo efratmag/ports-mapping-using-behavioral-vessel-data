@@ -7,8 +7,7 @@ import geopandas as gpd
 import pickle
 import logging
 import fire
-from pyports.geo_utils import is_in_polygon
-from pyproj import Geod
+from pyports.geo_utils import is_in_polygon, calc_polygon_area_sq_unit
 
 
 FILE_NAME = 'df_for_clustering.csv'  # df with lat lng of all anchoring activities
@@ -45,7 +44,7 @@ def polygenize_clusters(df_for_clustering, locations, clusterer):
         clust_polygons.at[clust, 'probs_of_belonging_to_clust'] = clusterer.probabilities_[clusters == clust]
         clust_polygons.at[clust, 'polygon'] = gpd.GeoSeries([polygon]).__geo_interface__['features'][0]['geometry']
         clust_polygons.at[clust, 'geometry'] = polygon
-        clust_polygons.loc[clust, 'area_sqkm'] = abs(geod.geometry_area_perimeter(polygon)[0]) * 1e-06
+        clust_polygons.loc[clust, 'area_sqkm'] = calc_polygon_area_sq_unit(polygon)
         clust_polygons.loc[clust, 'density'] = clust_polygons.loc[clust, 'area_sqkm'] / len(points)
 
     #clust_polygons['geometry'] = clust_polygons.apply(lambda x: shape(x['polygon']), axis=1)
