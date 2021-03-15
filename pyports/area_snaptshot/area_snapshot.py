@@ -1,4 +1,4 @@
-from pyports.area_snaptshot.map_config import MAP_CONFIG
+from pyports.area_snaptshot.map_configs import MAP_CONFIG_SNAPSHOT
 from pyports.geo_utils import get_bounding_box, isin_box
 import os
 import fire
@@ -70,15 +70,14 @@ def load_and_process_polygons_file(polygons_file_path, area_geohash=None):
     return polygons_df
 
 
-def main(import_path, export_path, col='firstBlip', polygon_import_path=None, lat=None, lng=None, distance=100, debug=True):
+def main(import_path, export_path, polygon_import_path=None, lat=None, lng=None, distance=100, debug=True):
 
     """
     This code will create an snapshot of a area for a given location and distance
-    :param import_path: path to directory with all relevant files
-    :param export_path: path in which the output will be exported
-    :param col: firstBlip / lastBlip
     :param lat: latitude of the snapshot location
     :param lng: longitude of the snapshot location
+    :param import_path: path to directory with all relevant files
+    :param export_path: path in which the output will be exported
     :param distance: bounding box length in Km
     :param polygon_import_path: an alternative for the lat, lng - passing a geojson file with the polygon area
     :param debug: if True, only a first 10K rows of each file will be processed
@@ -106,8 +105,8 @@ def main(import_path, export_path, col='firstBlip', polygon_import_path=None, la
         bounding_box = get_bounding_box(lat, lng, distance)
 
     #  define the map center by the given coordinates
-    MAP_CONFIG['config']['mapState']['latitude'] = lat
-    MAP_CONFIG['config']['mapState']['longitude'] = lng
+    MAP_CONFIG_SNAPSHOT['config']['mapState']['latitude'] = lat
+    MAP_CONFIG_SNAPSHOT['config']['mapState']['longitude'] = lng
 
     area_geohash = Geohash.encode(lat, lng, 2)
 
@@ -130,9 +129,10 @@ def main(import_path, export_path, col='firstBlip', polygon_import_path=None, la
         if file_name in ACTIVITIES_FILES:
             logging.info(f'loading file {file_name}...')
             df = pd.read_csv(file_path, compression='gzip', nrows=nrows)
-            df = extract_coordinates(df, col)
+            df = extract_coordinates(df, 'lastBlip')
+            # df = df[['_id', 'vesselId', 'firstBlip_lat', 'firstBlip_lng']]
 
-            df = df[df.apply(lambda x: isin_box(x[col+'_lat'], x[col+'_lng'], bounding_box), axis=1)]
+            df = df[df.apply(lambda x: isin_box(x['firstBlip_lat'], x['firstBlip_lng'], bounding_box), axis=1)]
             df['action'] = file_name.split('.')[0]
 
             results_list.append(df)
@@ -145,7 +145,7 @@ def main(import_path, export_path, col='firstBlip', polygon_import_path=None, la
     kepler_map.add_data(polygons_df, 'polygons')
 
     results_df.to_csv(os.path.join(export_path, vessels_file_name), index=False)
-    kepler_map.save_to_html(file_name=os.path.join(export_path, map_file_name), config=MAP_CONFIG)
+    kepler_map.save_to_html(file_name=os.path.join(export_path, map_file_name), config=MAP_CONFIG_SNAPSHOT)
 
 
 if __name__ == "__main__":
