@@ -1,4 +1,4 @@
 outs:
-- md5: 629122e1b27d843f69b5b1892ae185fc
-  size: 474646
+- md5: 19bd9a76d4b58a80725f9c47f2db8088
+  size: 292172
   path: hdbscan_polygons_med.json
