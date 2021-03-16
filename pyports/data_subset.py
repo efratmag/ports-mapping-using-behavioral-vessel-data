@@ -5,6 +5,7 @@ script that takes only subset of data-
 """
 
 import pandas as pd
+import numpy as np
 import os
 
 FILE_NAME = 'all_activities.csv.gz'  # df of all activities
@@ -28,7 +29,14 @@ cols = ['_id', 'vesselId', 'startDate', 'endDate', 'duration', 'firstBlip_lng',
 
 df_for_clustering = df_sub.loc[:, cols]
 
-#df_for_clustering = df_sub.loc[:, ['firstBlip_lng', 'firstBlip_lat']]
+# change class categories
+conditions = [
+        (df_for_clustering["vessel_class_calc"] == 'Cargo') & (df_for_clustering["vessel_subclass_documented"] == 'Container Vessel'),
+        (df_for_clustering["vessel_class_calc"] == 'Cargo') & (df_for_clustering["vessel_subclass_documented"] != 'Container Vessel'),
+        (df_for_clustering["vessel_class_calc"] == 'Tanker')
+    ]
+choices = ["cargo_container", "cargo_other", "tanker"]
+df_for_clustering["class_new"] = np.select(conditions, choices)
 
 df_for_clustering.to_csv(os.path.join(PATH, 'df_for_clustering.csv'))
 
