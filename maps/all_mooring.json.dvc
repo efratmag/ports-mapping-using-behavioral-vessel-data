@@ -1,0 +1,4 @@
+outs:
+- md5: b74e0387ebff73c8207ed5977679f6f6
+  size: 712796016
+  path: all_mooring.json
