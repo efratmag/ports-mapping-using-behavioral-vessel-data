@@ -1,0 +1,4 @@
+outs:
+- md5: 968d021b6182030834e4d78a1194e227
+  size: 959582186
+  path: all_mooring.csv
