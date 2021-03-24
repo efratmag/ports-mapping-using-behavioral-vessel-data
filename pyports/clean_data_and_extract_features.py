@@ -1,7 +1,9 @@
 from shapely.geometry import Point
 
 from shapely import ops
-from area_snaptshot.area_snapshot import load_and_process_polygons_file, extract_coordinates
+
+from pyports.geo_utils import geo_dist
+from pyports.area_snaptshot.area_snapshot import load_and_process_polygons_file, extract_coordinates
 
 import os
 import fire
@@ -11,8 +13,6 @@ import geopandas as gpd
 from sklearn.neighbors import BallTree
 
 import logging
-
-from geo_utils import geo_dist
 
 ACTIVITIES_FILES = ['mooring.csv.gz', 'drifting.csv.gz', 'port_calls.csv.gz', 'anchoring.csv.gz']
 
@@ -80,7 +80,7 @@ def load_and_process_shorelines_df(shorelines_file_path):
     shore_lines_df = gpd.read_file(shorelines_file_path)
     shore_lines = ops.linemerge(shore_lines_df['geometry'].values)
 
-    return shore_lines
+    return shore_lines_df, shore_lines
 
 
 def is_in_polygon_features(df):
@@ -104,8 +104,8 @@ def add_dist_from_nearest_port(df, ports_df):
     tmp_df['lat'] = ports_df.center_coordinates.map(lambda x: x[1])
     tmp_df['name'] = ports_df.name
     tmp_df['country'] = ports_df.country
-    ports_gdf = geopandas.GeoDataFrame(
-        tmp_df, geometry=geopandas.points_from_xy(tmp_df.lng, tmp_df.lat))
+    ports_gdf = gpd.GeoDataFrame(
+        tmp_df, geometry=gpd.points_from_xy(tmp_df.lng, tmp_df.lat))
 
     tree = BallTree(ports_gdf[['lat', 'lng']].values, leaf_size=2)
 
@@ -133,7 +133,7 @@ def main(import_path, export_path, debug=True):
 
     shorelines_file_path = os.path.join(import_path, 'shoreline_layer_merged.geojson')
 
-    shore_lines = load_and_process_shorelines_df(shorelines_file_path)
+    shore_lines_df, shore_lines = load_and_process_shorelines_df(shorelines_file_path)
 
     ports_df = pd.read_json(os.path.join(import_path, 'ports.json'), orient='index')
 
