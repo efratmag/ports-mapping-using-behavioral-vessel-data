@@ -1,0 +1,4 @@
+outs:
+- md5: e13b05ce7a6b0981f119ce4a0076d875
+  size: 105383864
+  path: all_mooring_only_lat_lng.csv

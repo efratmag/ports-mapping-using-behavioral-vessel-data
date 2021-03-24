@@ -1,0 +1,4 @@
+outs:
+- md5: a108ced8b868dca48bcc1a04e615e8e6
+  size: 268843728
+  path: all_mooring_only_lat_lng.json

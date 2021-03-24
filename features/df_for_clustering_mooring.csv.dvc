@@ -1,0 +1,4 @@
+outs:
+- md5: 846a4dddc729ba42df23aa39c781d463
+  size: 428568232
+  path: df_for_clustering_mooring.csv

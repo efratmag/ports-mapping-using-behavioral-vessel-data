@@ -1,0 +1,4 @@
+outs:
+- md5: 45fcc81c528c42d98fe8b101e421264f
+  size: 47762612
+  path: hdbscan_30mcs_30ms_mooring_polygons.json

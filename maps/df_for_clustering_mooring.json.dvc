@@ -1,0 +1,4 @@
+outs:
+- md5: 6b76a6d47a98b56e6fbbb2c5d60b3c39
+  size: 984899671
+  path: df_for_clustering_mooring.json
