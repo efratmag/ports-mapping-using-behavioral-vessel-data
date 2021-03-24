@@ -7,17 +7,14 @@ import geopandas as gpd
 import pickle
 import logging
 import fire
-from pyports.polygon_intersection import polygon_intersection
-from pyports.geo_utils import is_in_polygon, calc_polygon_area_sq_unit
+from pyports.geo_utils import *
 
 
 FILE_NAME = 'df_for_clustering.csv'  # df with lat lng of all anchoring activities
 PATH = '/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/features/'  # features folder
 
-geod = Geod(ellps="WGS84")
 
-
-def polygenize_clusters(df_for_clustering, locations, clusterer):
+def polygenize_clusters(polygons_df, ports_df, df_for_clustering, locations, clusterer):
 
     """
     :param df_for_clustering: df used for clustering
@@ -26,36 +23,39 @@ def polygenize_clusters(df_for_clustering, locations, clusterer):
     :return: df of polygons
     """
 
+    ports_centroids = ports_df.loc[:, ['lng', 'lat']].to_numpy()
+
     clusters = clusterer.labels_
 
-    clust_polygons = pd.DataFrame(columns=['id', 'num_points', 'mean_duration',
-                                           'probs_of_belonging_to_clust','polygon',
-                                           'geometry', 'area_sqkm', 'density'])
+    clust_polygons = pd.DataFrame()
 
-    clust_polygons['probs_of_belonging_to_clust'] = clust_polygons['probs_of_belonging_to_clust'].astype(object)
-    clust_polygons['polygon'] = clust_polygons['polygon'].astype(object)
-
-    for clust in range(clusters.max()+1):
-        points = locations[clusters == clust]
+    for cluster in tqdm(range(clusters.max() + 1), position=0, leave=True):
+        points = locations[clusters == cluster]
         polygon = MultiPoint(points).convex_hull
 
-        clust_polygons.loc[clust, 'id'] = clust
-        clust_polygons.loc[clust, 'num_points'] = len(points)
-        clust_polygons.loc[clust, 'mean_duration'] = df_for_clustering.loc[clusters == clust, 'duration'].mean()
-        clust_polygons.at[clust, 'probs_of_belonging_to_clust'] = clusterer.probabilities_[clusters == clust]
-        clust_polygons.at[clust, 'polygon'] = gpd.GeoSeries([polygon]).__geo_interface__['features'][0]['geometry']
-        clust_polygons.at[clust, 'geometry'] = polygon
-        clust_polygons.loc[clust, 'area_sqkm'] = calc_polygon_area_sq_unit(polygon)
-        clust_polygons.loc[clust, 'density'] = clust_polygons.loc[clust, 'area_sqkm'] / len(points)
+        clust_polygons.loc[cluster, 'label'] = f'cluster {cluster}'
+        clust_polygons.at[cluster, 'probs_of_belonging_to_clust'] = \
+            transform_numbers_array_to_string(clusterer.probabilities_[clusters == cluster])
+        clust_polygons.at[cluster, 'geometry'] = polygon
+        clust_polygons.loc[cluster, 'num_points'] = len(points)
+        clust_polygons.loc[cluster, 'area_sqkm'] = calc_polygon_area_sq_unit(polygon)
+        clust_polygons.loc[cluster, 'density'] = calc_cluster_density(points)
+        clust_polygons.loc[cluster, 'mean_duration'] = \
+            df_for_clustering.loc[clusters == cluster, 'duration'].mean()
+        clust_polygons.loc[cluster, 'median_duration'] = \
+            df_for_clustering.loc[clusters == cluster, 'duration'].median()
+        clust_polygons.loc[cluster, 'distance_from_nearest_port'] = \
+            calc_polygon_distance_from_nearest_port(polygon, ports_centroids)
+        clust_polygons.loc[cluster, 'n_unique_vesselID'] = \
+            df_for_clustering.loc[clusters == cluster, 'vesselId'].nunique()
+        clust_polygons.loc[cluster, 'percent_unique_vesselID'] = \
+            clust_polygons.loc[cluster, 'n_unique_vesselID'] / len(points)
+        clust_polygons.at[cluster, 'vesselIDs'] = \
+            ','.join(df_for_clustering.loc[clusters == cluster, 'vesselId'].to_numpy())
 
-    #clust_polygons['geometry'] = clust_polygons.apply(lambda x: shape(x['polygon']), axis=1)
+    clust_polygons = polygon_intersection(clust_polygons, polygons_df)
 
     return clust_polygons
-
-
-def flip(x, y):
-    """Flips the x and y coordinate values"""
-    return y, x
 
 
 def main(path, df_for_clustering_fname, hdbscan_min_cluster_zise=15, hdbscan_min_samples=1, polygon_fname=None, sub_area_name=None):
