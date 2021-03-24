@@ -4,6 +4,7 @@ from shapely.geometry import shape, Point, MultiLineString
 from scipy.spatial import Delaunay
 import numpy as np
 from shapely import ops
+from geopy.distance import distance
 
 
 R = 6378.1  # Radius of the Earth
@@ -218,6 +219,7 @@ def calc_polygon_area_sq_unit(polygon, unit='sqkm'):
 
     return polygon_area
 
+
 def calc_cluster_density(points):
     """
     :param points: all points in cluster
@@ -268,4 +270,10 @@ def calc_polygon_distance_from_nearest_port(polygon, ports_centroids):
     polygon_centroid = (polygon.centroid.x, polygon.centroid.x)
     dists = np.sum((ports_centroids - polygon_centroid)**2, axis=1)
     return np.min(dists)
+
+
+def geodesic_distance(x, y):
+    """ distance metric using geopy geodesic metric. points need to be ordered (lat,lng)"""
+    geo_dist = distance((x[0], x[1]), (y[0], y[1]))
+    return geo_dist.kilometers
 
