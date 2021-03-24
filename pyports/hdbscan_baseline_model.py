@@ -2,19 +2,20 @@ import pandas as pd
 import os
 import hdbscan
 from shapely.geometry import MultiPoint
-from shapely.ops import transform
 import geopandas as gpd
 import pickle
 import logging
 import fire
 from pyports.geo_utils import *
+from tqdm import tqdm
 
 
+ACTIVITY = 'mooring'
 FILE_NAME = 'df_for_clustering.csv'  # df with lat lng of all anchoring activities
 PATH = '/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/features/'  # features folder
 
 
-def polygenize_clusters(polygons_df, ports_df, df_for_clustering, locations, clusterer):
+def polygenize_clusters_with_features(df_for_clustering, polygons_df, ports_df, locations, clusterer):
 
     """
     :param df_for_clustering: df used for clustering
@@ -74,20 +75,17 @@ def main(path, df_for_clustering_fname, hdbscan_min_cluster_zise=15, hdbscan_min
                                 metric='euclidean')
     clusterer.fit(locations)
 
-    clust_polygons = polygenize_clusters(df, locations, clusterer)
+    clust_polygons = polygenize_clusters_with_features(df, ports_df, polygons_df, locations, clusterer)
 
-    geo_df_clust_polygons = gpd.GeoDataFrame(clust_polygons.drop(columns = ['polygon','probs_of_belonging_to_clust']))
-
-    # fix lat lng #TODO: do it right from the start
-    for poly in range(geo_df_clust_polygons.shape[0]):
-        geo_df_clust_polygons.loc[poly, 'geometry'] = transform(flip, geo_df_clust_polygons.loc[poly, 'geometry'])
-
-    geo_df_clust_polygons = polygon_intersection(geo_df_clust_polygons)
+    geo_df_clust_polygons = gpd.GeoDataFrame(clust_polygons)
 
     # save model and files
-    #pickle.dump(clusterer, open('models/hdbscan_15mcs_1ms'), 'wb')
-    #clust_polygons.to_csv(os.path.join(path, 'clust_polygons.csv'))
-    geo_df_clust_polygons.to_file(os.path.join(path, 'hdbscan_polygons.json'), driver="GeoJSON")
+    pkl_model_fname = f'hdbscan_{hdbscan_min_cluster_zise}mcs_{hdbscan_min_samples}ms_{ACTIVITY}'
+    clust_polygons_fname = pkl_model_fname + '_polygons.json'
+
+    with open('models/' + pkl_model_fname, 'wb') as file:
+        pickle.dump(clusterer, file)
+    geo_df_clust_polygons.to_file('maps/' + clust_polygons_fname, driver="GeoJSON")
 
 
 if __name__ == "__main__":
