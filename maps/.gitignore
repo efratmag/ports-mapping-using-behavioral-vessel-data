@@ -1,7 +1,3 @@
-/all_anchoring.json
-/hdbscan_polygons_med.json
-/all_anchoring_med.html
-/all_mooring.json
 /all_mooring_only_lat_lng.json
 /df_for_clustering_mooring.json
 /hdbscan_30mcs_1ms_mooring_polygons.json
