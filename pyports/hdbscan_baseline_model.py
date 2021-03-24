@@ -15,14 +15,14 @@ FILE_NAME = 'df_for_clustering.csv'  # df with lat lng of all anchoring activiti
 PATH = '/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/features/'  # features folder
 
 
-def polygenize_clusters_with_features(df_for_clustering, polygons_df, ports_df, locations, clusterer):
+def transform_numbers_array_to_string(array):
+    """converts list of numbers to delimited string"""
+    x_arrstr = np.char.mod('%f', array)
+    x_str = ",".join(x_arrstr)
+    return x_str
 
-    """
-    :param df_for_clustering: df used for clustering
-    :param locations: lat lng of all relevant vessels behavior for clustering
-    :param clusterer: fitted clustering model
-    :return: df of polygons
-    """
+
+def polygenize_clusters_with_features(df_for_clustering, polygons_df, ports_df, locations, clusterer):
 
     ports_centroids = ports_df.loc[:, ['lng', 'lat']].to_numpy()
 
@@ -59,12 +59,12 @@ def polygenize_clusters_with_features(df_for_clustering, polygons_df, ports_df, 
     return clust_polygons
 
 
-def main(path, df_for_clustering_fname, hdbscan_min_cluster_zise=15, hdbscan_min_samples=1, polygon_fname=None, sub_area_name=None):
+def main(path, df_for_clustering_fname, hdbscan_min_cluster_zise=15, hdbscan_min_samples=1, polygon_fname=None):
 
     # import df and clean it
     df = pd.read_csv(os.path.join(path, df_for_clustering_fname))
-    df = df.drop_duplicates(subset=['firstBlip_lat', 'firstBlip_lng']) # drop duplicates
-    if polygon_fname: # take only area of the data, e.g. 'maps/mediterranean.geojson'
+    df = df.drop_duplicates(subset=['firstBlip_lat', 'firstBlip_lng'])  # drop duplicates
+    if polygon_fname:  # take only area of the data, e.g. 'maps/mediterranean.geojson'
         df = df[df.apply(lambda x: is_in_polygon(x['firstBlip_lng'], x['firstBlip_lat'], polygon_fname), axis=1)]
 
     locations = df[['firstBlip_lat', 'firstBlip_lng']].to_numpy()
@@ -72,8 +72,12 @@ def main(path, df_for_clustering_fname, hdbscan_min_cluster_zise=15, hdbscan_min
     # clustering
     clusterer = hdbscan.HDBSCAN(min_cluster_size=hdbscan_min_cluster_zise,
                                 min_samples=hdbscan_min_samples,
-                                metric='euclidean')
+                                metric=geodesic_distance)  #'euclidean')
     clusterer.fit(locations)
+
+    # TODO: generalize path
+    ports_df = gpd.read_file('maps/ports.json')
+    polygons_df = gpd.read_file('maps/polygons.geojson')
 
     clust_polygons = polygenize_clusters_with_features(df, ports_df, polygons_df, locations, clusterer)
 
@@ -91,4 +95,3 @@ def main(path, df_for_clustering_fname, hdbscan_min_cluster_zise=15, hdbscan_min
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     fire.Fire(main)
-
