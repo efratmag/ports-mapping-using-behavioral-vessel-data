@@ -1,15 +1,16 @@
 import pandas as pd
 import os
 import hdbscan
+from pyproj import Geod
 from shapely.geometry import MultiPoint
-from shapely.ops import transform
+from shapely.ops import transform, nearest_points
 import geopandas as gpd
 import pickle
 import logging
 import fire
 from pyports.polygon_intersection import polygon_intersection
-from pyports.geo_utils import is_in_polygon, calc_polygon_area_sq_unit
-
+from pyports.geo_utils import is_in_polygon, calc_polygon_area_sq_unit, polygons_to_multi_lines, merge_polygons, \
+    haversine
 
 FILE_NAME = 'df_for_clustering.csv'  # df with lat lng of all anchoring activities
 PATH = '/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/features/'  # features folder
@@ -58,13 +59,19 @@ def flip(x, y):
     return y, x
 
 
-def main(path, df_for_clustering_fname, hdbscan_min_cluster_zise=15, hdbscan_min_samples=1, polygon_fname=None, sub_area_name=None):
+def main(path, df_for_clustering_fname, path_to_shoreline_file, hdbscan_min_cluster_zise=15, hdbscan_min_samples=1, polygon_fname=None, sub_area_name=None):
 
     # import df and clean it
     df = pd.read_csv(os.path.join(path, df_for_clustering_fname))
     df = df.drop_duplicates(subset=['firstBlip_lat', 'firstBlip_lng']) # drop duplicates
     if polygon_fname: # take only area of the data, e.g. 'maps/mediterranean.geojson'
         df = df[df.apply(lambda x: is_in_polygon(x['firstBlip_lng'], x['firstBlip_lat'], polygon_fname), axis=1)]
+
+
+    logging.info('loading and processing shoreline file...')
+    shoreline_df = gpd.read_file(path_to_shoreline_file)
+    shoreline_multi_line = polygons_to_multi_lines(shoreline_df)
+    shoreline_multi_polygon = merge_polygons(shoreline_df)
 
     locations = df[['firstBlip_lat', 'firstBlip_lng']].to_numpy()
 
@@ -81,6 +88,25 @@ def main(path, df_for_clustering_fname, hdbscan_min_cluster_zise=15, hdbscan_min
     # fix lat lng #TODO: do it right from the start
     for poly in range(geo_df_clust_polygons.shape[0]):
         geo_df_clust_polygons.loc[poly, 'geometry'] = transform(flip, geo_df_clust_polygons.loc[poly, 'geometry'])
+
+        polygon_center = geo_df_clust_polygons.loc[poly, 'geometry'].centroid
+
+        if polygon_center.within(shoreline_multi_polygon):
+            geo_df_clust_polygons.loc[poly, 'distance_from_shore'] = 0
+
+        else:
+            nearest_shore = nearest_points(shoreline_multi_line, polygon_center)[0]
+            geo_df_clust_polygons.loc[poly, 'distance_from_shore'] = haversine((nearest_shore.y, nearest_shore.x),
+                                                                               (polygon_center.y, polygon_center.x))
+
+            geo_df_clust_polygons.loc[poly, 'nearest_shore_lat'] = nearest_shore.y
+            geo_df_clust_polygons.loc[poly, 'nearest_shore_lng'] = nearest_shore.x
+
+        geo_df_clust_polygons.loc[poly, 'centroid_lat'] = polygon_center.y
+        geo_df_clust_polygons.loc[poly, 'centroid_lng'] = polygon_center.x
+
+    geo_df_clust_polygons = polygon_intersection(geo_df_clust_polygons)
+
 
     geo_df_clust_polygons = polygon_intersection(geo_df_clust_polygons)
 
