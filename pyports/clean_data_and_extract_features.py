@@ -2,7 +2,7 @@ from shapely.geometry import Point
 
 from shapely import ops
 
-from pyports.geo_utils import geo_dist
+from pyports.geo_utils import haversine, polygons_to_multi_lines
 from pyports.area_snaptshot.area_snapshot import load_and_process_polygons_file, extract_coordinates
 
 import os
@@ -66,10 +66,10 @@ def calc_distance_from_shore(df, shore_lines, col="firstBlip"):
 
     df = df.drop('nearest_shore_point', axis=1)
 
-    df[col+'_distance_from_shore'] = df.apply(lambda x: geo_dist(x[col + '_lat'],
-                                                                 x[col + '_lng'],
-                                                                 x[col+'_nearest_shore_lat'],
-                                                                 x[col+'_nearest_shore_lng']), axis=1)
+    df[col+'_distance_from_shore'] = df.apply(lambda x: haversine((x[col + '_lat'],
+                                                                   x[col + '_lng']),
+                                                                  (x[col+'_nearest_shore_lat'],
+                                                                   x[col+'_nearest_shore_lng'])), axis=1)
 
     return df
 
