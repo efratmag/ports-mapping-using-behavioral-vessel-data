@@ -4,6 +4,7 @@ from shapely.geometry import shape, Point, MultiLineString
 from scipy.spatial import Delaunay
 import numpy as np
 from shapely import ops
+import geopandas as gpd
 
 
 R = 6378.1  # Radius of the Earth
@@ -217,3 +218,17 @@ def calc_polygon_area_sq_unit(polygon, unit='sqkm'):
     polygon_area *= polygon_area
 
     return polygon_area
+
+
+def polygons_to_multi_lines(polygons_df):
+
+    polygons_multi_line = ops.linemerge(polygons_df['geometry'].boundary.values)
+
+    return polygons_multi_line
+
+
+def merge_polygons(geo_df):
+
+    merged_polygons = gpd.GeoSeries(ops.cascaded_union(geo_df['geometry'])).loc[0]
+
+    return merged_polygons
