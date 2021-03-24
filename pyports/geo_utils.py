@@ -217,3 +217,55 @@ def calc_polygon_area_sq_unit(polygon, unit='sqkm'):
     polygon_area *= polygon_area
 
     return polygon_area
+
+def calc_cluster_density(points):
+    """
+    :param points: all points in cluster
+    :return: cluster density
+    """
+
+    total_distance = 0
+    count = 0
+    i = 0
+
+    for x1,y1 in points:
+        for x2,y2 in points[i+1:]:
+            count += 1
+            total_distance += math.sqrt((x1-x2)**2 + (y1-y2)**2)
+        i += 1
+
+    return count/total_distance
+
+
+def polygon_intersection(clust_polygons, ww_polygons):
+    """
+    :param clust_polygons: df of clustering polygons
+    :param ww_polygons: df of windward polygons
+    :return: geopandas dataframe with extra feature of intersection of polygons with windward's polygons
+    """
+    for i, clust_poly in enumerate(clust_polygons.geometry):
+        for j, ww_poly in enumerate(ww_polygons.geometry):
+            if clust_poly.intersects(ww_poly):
+                clust_polygons.loc[i,'intersection'] = clust_poly.intersection(ww_poly).area/clust_poly.area * 100
+    return clust_polygons
+
+
+def flip(x, y):
+    """Flips the x and y coordinate values"""
+    return y, x
+
+
+def get_ports_centroid_array(ports_df):
+    """ Returns array of ports centroids"""
+    ports_centroids = np.array(
+        [ports_df.center_coordinates.map(lambda x: x[0]),
+         ports_df.center_coordinates.map(lambda x: x[1])]).transpose()
+    return ports_centroids
+
+
+def calc_polygon_distance_from_nearest_port(polygon, ports_centroids):
+    """takes a polygon and an array of ports centroids and returns the distance from the nearest port from the array"""
+    polygon_centroid = (polygon.centroid.x, polygon.centroid.x)
+    dists = np.sum((ports_centroids - polygon_centroid)**2, axis=1)
+    return np.min(dists)
+
