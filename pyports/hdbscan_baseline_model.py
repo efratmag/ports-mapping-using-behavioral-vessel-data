@@ -35,7 +35,7 @@ def calc_nearest_shore(df, path_to_shoreline_file):
         else:
             nearest_shore = nearest_points(shoreline_multi_line, polygon_center)[0]
             df.loc[poly, 'distance_from_shore'] = haversine((nearest_shore.y, nearest_shore.x),
-                                                                               (polygon_center.y, polygon_center.x))
+                                                            (polygon_center.y, polygon_center.x))
 
             # I added nearest_shore and polygons centroid for QA purposes
             df.loc[poly, 'nearest_shore_lat'] = nearest_shore.y
