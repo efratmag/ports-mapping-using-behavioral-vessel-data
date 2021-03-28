@@ -196,9 +196,11 @@ def alpha_shape(points, alpha, only_outer=True):
     return ops.cascaded_union(triangles), edge_points, edges
 
 
-def polygon_to_meters(polygon):
+def polygon_to_meters(polygon, avg_lat=None):
 
-    avg_lat = polygon.centroid.y
+    if not avg_lat:
+
+        avg_lat = get_avg_lat(polygon.exterior.coords)
 
     def shape_to_meters(lat, lng, avg_lat):
         x = lng * math.cos(math.radians(avg_lat)) * METERS_IN_DEG
@@ -208,7 +210,7 @@ def polygon_to_meters(polygon):
     def to_meters(lng, lat):
         return shape_to_meters(lat, lng, avg_lat)
 
-    return shape(ops.transform(to_meters, polygon))
+    return avg_lat, shape(ops.transform(to_meters, polygon))
 
 
 def calc_polygon_area_sq_unit(polygon, unit='sqkm'):
@@ -232,3 +234,34 @@ def merge_polygons(geo_df):
     merged_polygons = gpd.GeoSeries(ops.cascaded_union(geo_df['geometry'])).loc[0]
 
     return merged_polygons
+
+
+def polygon_to_wgs84(polygon, avg_lat=None):
+
+    if not avg_lat:
+        avg_lat = get_avg_lat(polygon.exterior.coords)
+
+    def shape_to_wgs84(x, y, avg_lat):
+        lng = x / math.cos(math.radians(avg_lat)) / METERS_IN_DEG
+        lat = y / METERS_IN_DEG
+        return lat, lng
+
+    def to_wgs84(x, y):
+        return tuple(reversed(shape_to_wgs84(x, y, avg_lat)))
+
+    return avg_lat, shape(ops.transform(to_wgs84, polygon))
+
+
+def get_avg_lat(coordinates):
+    s = sum(c[1] for c in coordinates)
+    return float(s) / len(coordinates)
+
+
+def inflate_polygon(polygon, meters):
+
+    avg_lat, polygon = polygon_to_meters(polygon)
+    polygon = polygon.buffer(meters, resolution=4)
+
+    _, polygon = polygon_to_wgs84(polygon, avg_lat)
+
+    return polygon
