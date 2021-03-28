@@ -20,12 +20,16 @@ geod = Geod(ellps="WGS84")
 
 def calc_nearest_shore(df, path_to_shoreline_file):
 
-    logging.info('loading and processing shoreline file...')
+    logging.info('loading and processing shoreline file - START')
     shoreline_df = gpd.read_file(path_to_shoreline_file)
     shoreline_multi_line = polygons_to_multi_lines(shoreline_df)
     shoreline_multi_polygon = merge_polygons(shoreline_df)
+    logging.info('loading and processing shoreline file - END')
 
     for poly in range(df.shape[0]):
+
+        if poly % 100==0 and poly != 0:
+            logging.info(f'{poly} instances was calculated')
 
         polygon_center = df.loc[poly, 'geometry'].centroid
 
