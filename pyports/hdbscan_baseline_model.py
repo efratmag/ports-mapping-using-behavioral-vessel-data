@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 
 ACTIVITY = 'mooring'
-FILE_NAME = 'df_for_clustering.csv'  # df with lat lng of all anchoring activities
+FILE_NAME = f'df_for_clustering_{ACTIVITY}.csv'  # df with lat lng of all anchoring activities
 PATH = '/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/features/'  # features folder
 
 
