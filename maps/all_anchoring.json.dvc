@@ -1,0 +1,4 @@
+outs:
+- md5: 43ab2c803554804569879412393f6fe8
+  size: 161974786
+  path: all_anchoring.json
