@@ -5,6 +5,7 @@ from scipy.spatial import Delaunay
 import numpy as np
 from shapely import ops
 from geopy.distance import distance
+from scipy.spatial.distance import pdist
 
 
 R = 6378.1  # Radius of the Earth
@@ -226,17 +227,11 @@ def calc_cluster_density(points):
     :return: cluster density
     """
 
-    total_distance = 0
-    count = 0
-    i = 0
+    distances = pdist(points)
+    total_distance = distances.sum()
+    n_pairwise_comparisons = len(distances)
 
-    for x1,y1 in points:
-        for x2,y2 in points[i+1:]:
-            count += 1
-            total_distance += math.sqrt((x1-x2)**2 + (y1-y2)**2)
-        i += 1
-
-    return count/total_distance
+    return n_pairwise_comparisons / total_distance
 
 
 def polygon_intersection(clust_polygons, ww_polygons):
