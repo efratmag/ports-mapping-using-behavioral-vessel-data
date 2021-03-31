@@ -1,6 +1,6 @@
 import math
 import json
-from shapely.geometry import shape, Point, MultiLineString
+from shapely.geometry import shape, Point, MultiLineString, Polygon
 from scipy.spatial import Delaunay
 import numpy as np
 from shapely import ops
@@ -257,11 +257,30 @@ def get_avg_lat(coordinates):
     return float(s) / len(coordinates)
 
 
-def inflate_polygon(polygon, meters):
+def inflate_polygon(polygon, meters, resolution=4):
 
     avg_lat, polygon = polygon_to_meters(polygon)
-    polygon = polygon.buffer(meters, resolution=4)
+    polygon = polygon.buffer(meters, resolution=resolution)
 
     _, polygon = polygon_to_wgs84(polygon, avg_lat)
 
     return polygon
+
+
+def merge_adjacent_polygons(geo_df, inflation_meter):
+
+    inflated_df = geo_df.apply(lambda x: inflate_polygon(x['geometry'], inflation_meter), axis=1)
+
+    inflated_df = gpd.GeoDataFrame(inflated_df, columns=['geometry'])
+
+    merged_inflated = merge_polygons(inflated_df)
+
+    merged_inflated = [merged_inflated] if isinstance(merged_inflated, Polygon) else list(merged_inflated)
+
+    merged_inflated = gpd.GeoDataFrame(merged_inflated, columns=['geometry'])
+
+    merged_df = gpd.sjoin(geo_df, merged_inflated, how='left')
+
+    merged_df = merged_df.dissolve(by='index_right')
+
+    return merged_inflated, merged_df
