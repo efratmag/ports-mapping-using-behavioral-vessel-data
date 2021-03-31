@@ -9,6 +9,7 @@ import os
 
 FILE_NAME = 'all_activities.csv.gz'  # df of all activities
 PATH = '/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/features' # features folder
+ACTIVITY = 'mooring'
 
 # read full df in chunks
 tfr = pd.read_csv(os.path.join(PATH, FILE_NAME),
@@ -18,7 +19,7 @@ tfr = pd.read_csv(os.path.join(PATH, FILE_NAME),
                   iterator=True)
 df = pd.concat(tfr, ignore_index=True)
 
-df_sub = df[df.activity == 'anchoring']
+df_sub = df[df.activity == ACTIVITY]
 
 cols = ['_id', 'vesselId', 'startDate', 'endDate', 'duration', 'firstBlip_lng',
        'firstBlip_lat', 'lastBlip_lng', 'lastBlip_lat', 'vessel_class_calc',
@@ -28,7 +29,16 @@ cols = ['_id', 'vesselId', 'startDate', 'endDate', 'duration', 'firstBlip_lng',
 
 df_for_clustering = df_sub.loc[:, cols]
 
-#df_for_clustering = df_sub.loc[:, ['firstBlip_lng', 'firstBlip_lat']]
+# change class categories
+conditions = [
+        (df_for_clustering["vessel_class_calc"] == 'Cargo') & (df_for_clustering["vessel_subclass_documented"] == 'Container Vessel'),
+        (df_for_clustering["vessel_class_calc"] == 'Cargo') & (df_for_clustering["vessel_subclass_documented"] != 'Container Vessel'),
+        (df_for_clustering["vessel_class_calc"] == 'Tanker')
+    ]
+choices = ["cargo_container", "cargo_other", "tanker"]
+df_for_clustering["class_new"] = np.select(conditions, choices)
 
-df_for_clustering.to_csv(os.path.join(PATH, 'df_for_clustering.csv'))
+df_for_clustering = df_for_clustering[df_for_clustering.class_new != '0'] # take only cargo and tanker vessels
+
+df_for_clustering.to_csv(os.path.join(PATH, f'df_for_clustering_{ACTIVITY}.csv'))
 
