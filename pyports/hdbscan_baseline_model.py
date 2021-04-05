@@ -59,7 +59,11 @@ def polygenize_clusters_with_features(df_for_clustering, polygons_df, ports_df, 
     return clust_polygons
 
 
-def main(path=PATH, df_for_clustering_fname=FILE_NAME, hdbscan_min_cluster_zise=30, hdbscan_min_samples=5, polygon_fname=None):
+def main(path=PATH,
+         df_for_clustering_fname=FILE_NAME,
+         hdbscan_min_cluster_zise=30, hdbscan_min_samples=5,
+         distance_metric = great_circle_distance,
+         polygon_fname=None):
 
     # import df and clean it
     df = pd.read_csv(os.path.join(path, df_for_clustering_fname))
@@ -72,7 +76,7 @@ def main(path=PATH, df_for_clustering_fname=FILE_NAME, hdbscan_min_cluster_zise=
     # clustering
     clusterer = hdbscan.HDBSCAN(min_cluster_size=hdbscan_min_cluster_zise,
                                 min_samples=hdbscan_min_samples,
-                                metric=geodesic_distance)  #'euclidean')
+                                metric=distance_metric)
     clusterer.fit(locations)
 
     # TODO: generalize path
