@@ -6,6 +6,7 @@ import numpy as np
 from shapely import ops
 from geopy.distance import distance, great_circle
 from scipy.spatial.distance import pdist
+from numba import jit, prange
 
 
 R = 6378.1  # Radius of the Earth
@@ -280,4 +281,20 @@ def great_circle_distance(x,y):
     circle_dist = great_circle((x[0], x[1]), (y[0], y[1]))
     return circle_dist.kilometers
 
+
+@jit(parallel=True)
+def haversine_distances_parallel(d):
+    """Numba version of haversine distance."""
+
+    dist_mat = np.zeros((d.shape[0], d.shape[0]))
+
+    # We parallelize outer loop to keep threads busy
+    for i in prange(d.shape[0]):
+        for j in range(i+1, d.shape[0]):
+            sin_0 = np.sin(0.5 * (d[i, 0] - d[j, 0]))
+            sin_1 = np.sin(0.5 * (d[i, 1] - d[j, 1]))
+            cos_0 = np.cos(d[i, 0]) * np.cos(d[j, 0])
+            dist_mat[i, j] = 2 * np.arcsin(np.sqrt(sin_0 * sin_0 + cos_0 * sin_1 * sin_1))
+            dist_mat[j, i] = dist_mat[i, j]
+    return dist_mat
 
