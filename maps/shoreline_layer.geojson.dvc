@@ -1,0 +1,4 @@
+outs:
+- md5: ac661aad0a5c9bd94f35ed33fe569d57
+  size: 15800465
+  path: shoreline_layer.geojson
