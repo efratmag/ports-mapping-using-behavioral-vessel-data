@@ -1,0 +1,4 @@
+outs:
+- md5: 03a08651433b260c32bfb5c96c151de8
+  size: 52117695
+  path: hdbscan_30mcs_5ms_mooring_polygons_with_distance.geojson
