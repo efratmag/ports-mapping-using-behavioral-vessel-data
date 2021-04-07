@@ -7,3 +7,6 @@
 /new_polygons_candidates.json
 /all_mooring.json
 /all_anchoring.json
+/shoreline_layer.geojson
+/ports.json
+/comparing_polygons.html

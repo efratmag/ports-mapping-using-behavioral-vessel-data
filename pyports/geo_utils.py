@@ -3,9 +3,13 @@ import json
 from shapely.geometry import shape, Point, MultiLineString
 from scipy.spatial import Delaunay
 import numpy as np
+import geopandas as gpd
+import shapely
 from shapely import ops
-from geopy.distance import distance
+from geopy.distance import distance, great_circle
 from scipy.spatial.distance import pdist
+from numba import jit, prange
+import logging
 
 
 R = 6378.1  # Radius of the Earth
@@ -271,4 +275,48 @@ def geodesic_distance(x, y):
     """ distance metric using geopy geodesic metric. points need to be ordered (lat,lng)"""
     geo_dist = distance((x[0], x[1]), (y[0], y[1]))
     return geo_dist.kilometers
+
+
+def great_circle_distance(x,y):
+    """ distance metric using geopy great circle metric.
+    it is much faster than geodesic but a bit less accurate.
+    points need to be ordered (lat,lng)"""
+    circle_dist = great_circle((x[0], x[1]), (y[0], y[1]))
+    return circle_dist.kilometers
+
+
+@jit(parallel=True)
+def haversine_distances_parallel(d):
+    """Numba version of haversine distance."""
+
+    dist_mat = np.zeros((d.shape[0], d.shape[0]))
+
+    # We parallelize outer loop to keep threads busy
+    for i in prange(d.shape[0]):
+        for j in range(i+1, d.shape[0]):
+            sin_0 = np.sin(0.5 * (d[i, 0] - d[j, 0]))
+            sin_1 = np.sin(0.5 * (d[i, 1] - d[j, 1]))
+            cos_0 = np.cos(d[i, 0]) * np.cos(d[j, 0])
+            dist_mat[i, j] = 2 * np.arcsin(np.sqrt(sin_0 * sin_0 + cos_0 * sin_1 * sin_1))
+            dist_mat[j, i] = dist_mat[i, j]
+    return dist_mat
+
+
+def polygons_to_multi_lines(polygons_df):
+
+    polygons_multi_line = ops.linemerge(polygons_df['geometry'].boundary.values)
+
+    return polygons_multi_line
+
+
+def merge_polygons(geo_df):
+
+    merged_polygons = gpd.GeoSeries(ops.cascaded_union(geo_df['geometry'])).loc[0]
+
+    return merged_polygons
+
+
+
+
+
 

@@ -3,3 +3,7 @@
 /all_mooring_only_lat_lng.csv
 /df_for_clustering_mooring.csv
 /ww_ports.csv
+/hdbscan_30mcs_5ms_mooring_polygons_with_distance.geojson
+/new_ports.json
+/hdbscan_30mcs_5ms_mooring_alpha_shape_polygons_with_distance.geojson
+/hdbscan_30mcs_5ms_mooring_alpha_shape_polygons.geojson
