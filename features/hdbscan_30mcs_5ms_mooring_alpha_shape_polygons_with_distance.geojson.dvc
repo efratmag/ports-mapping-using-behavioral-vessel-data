@@ -1,5 +1,4 @@
 outs:
-- md5: fca52219a2b668903fb8d9b577fc9ca6.dir
-  size: 9926141
-  nfiles: 4
+- md5: 675ada88f3c98e52098c5a81495c7245
+  size: 52033465
   path: hdbscan_30mcs_5ms_mooring_alpha_shape_polygons_with_distance.geojson
