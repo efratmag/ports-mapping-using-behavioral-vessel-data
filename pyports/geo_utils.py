@@ -3,10 +3,13 @@ import json
 from shapely.geometry import shape, Point, MultiLineString
 from scipy.spatial import Delaunay
 import numpy as np
+import geopandas as gpd
+import shapely
 from shapely import ops
 from geopy.distance import distance, great_circle
 from scipy.spatial.distance import pdist
 from numba import jit, prange
+import logging
 
 
 R = 6378.1  # Radius of the Earth
@@ -297,4 +300,23 @@ def haversine_distances_parallel(d):
             dist_mat[i, j] = 2 * np.arcsin(np.sqrt(sin_0 * sin_0 + cos_0 * sin_1 * sin_1))
             dist_mat[j, i] = dist_mat[i, j]
     return dist_mat
+
+
+def polygons_to_multi_lines(polygons_df):
+
+    polygons_multi_line = ops.linemerge(polygons_df['geometry'].boundary.values)
+
+    return polygons_multi_line
+
+
+def merge_polygons(geo_df):
+
+    merged_polygons = gpd.GeoSeries(ops.cascaded_union(geo_df['geometry'])).loc[0]
+
+    return merged_polygons
+
+
+
+
+
 

@@ -13,6 +13,8 @@ from tqdm import tqdm
 ACTIVITY = 'mooring'
 FILE_NAME = f'df_for_clustering_{ACTIVITY}.csv'  # df with lat lng of all anchoring activities
 PATH = '/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/features/'  # features folder
+SHORELINE_FNAME = 'shoreline_layer.geojson'
+path_to_shoreline_file = os.path.join('/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/maps/', SHORELINE_FNAME)
 
 
 def transform_numbers_array_to_string(array):
@@ -22,7 +24,10 @@ def transform_numbers_array_to_string(array):
     return x_str
 
 
-def polygenize_clusters_with_features(df_for_clustering, polygons_df, ports_df, locations, clusterer):
+def polygenize_clusters_with_features(df_for_clustering,
+                                      ports_df,
+                                      locations,
+                                      clusterer):
 
     ports_centroids = ports_df.loc[:, ['lng', 'lat']].to_numpy()
 
@@ -32,7 +37,10 @@ def polygenize_clusters_with_features(df_for_clustering, polygons_df, ports_df, 
 
     for cluster in tqdm(range(clusters.max() + 1), position=0, leave=True):
         points = locations[clusters == cluster]
-        polygon = MultiPoint(points).convex_hull
+        polygon = alpha_shape(points, 4)[0]
+        polygon = ops.transform(flip, polygon)  # flip lat lng
+
+        # polygon = MultiPoint(points).convex_hull
 
         clust_polygons.loc[cluster, 'label'] = f'cluster {cluster}'
         clust_polygons.at[cluster, 'probs_of_belonging_to_clust'] = \
@@ -54,15 +62,13 @@ def polygenize_clusters_with_features(df_for_clustering, polygons_df, ports_df, 
         clust_polygons.at[cluster, 'vesselIDs'] = \
             ','.join(df_for_clustering.loc[clusters == cluster, 'vesselId'].to_numpy())
 
-    clust_polygons = polygon_intersection(clust_polygons, polygons_df)
-
     return clust_polygons
 
 
 def main(path=PATH,
          df_for_clustering_fname=FILE_NAME,
          hdbscan_min_cluster_zise=30, hdbscan_min_samples=5,
-         distance_metric = great_circle_distance,
+         distance_metric='euclidean',
          polygon_fname=None):
 
     # import df and clean it
@@ -83,7 +89,9 @@ def main(path=PATH,
     ports_df = gpd.read_file('maps/ports.json')
     polygons_df = gpd.read_file('maps/polygons.geojson')
 
-    clust_polygons = polygenize_clusters_with_features(df, ports_df, polygons_df, locations, clusterer)
+    clust_polygons = polygenize_clusters_with_features(df, ports_df, locations, clusterer)
+    clust_polygons = polygon_intersection(clust_polygons, polygons_df)
+    #clust_polygons = calc_nearest_shore(clust_polygons, path_to_shoreline_file)
 
     geo_df_clust_polygons = gpd.GeoDataFrame(clust_polygons)
 
