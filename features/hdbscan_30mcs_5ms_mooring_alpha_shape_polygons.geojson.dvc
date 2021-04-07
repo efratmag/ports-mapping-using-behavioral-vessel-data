@@ -1,0 +1,4 @@
+outs:
+- md5: 5ede600872fc2f023d1251ec5c29b9f5
+  size: 50626524
+  path: hdbscan_30mcs_5ms_mooring_alpha_shape_polygons.geojson
