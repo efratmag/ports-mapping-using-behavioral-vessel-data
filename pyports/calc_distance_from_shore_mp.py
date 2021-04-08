@@ -29,14 +29,15 @@ def calc_nearest_points(params):
 
             if point.within(geo_layer_multi_polygon):
                 distance = 0
+                results_list.append({'index': index, 'distance': distance})
 
             else:
                 nearest_point = ops.nearest_points(geo_layer_multi_line, point)[0]
                 distance = haversine((nearest_point.y, nearest_point.x),
                                      (point.y, point.x))
 
-            results_list.append({'index': index, 'distance': distance,
-                                 'nearest_lat': nearest_point.y, 'nearest_lng': nearest_point.x})
+                results_list.append({'index': index, 'distance': distance,
+                                     'nearest_lat': nearest_point.y, 'nearest_lng': nearest_point.x})
 
         except Exception as e:
             logging.info(f'point at index {index} failed, reason - {e}')
