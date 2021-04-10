@@ -1,0 +1,4 @@
+outs:
+- md5: 56796d3354ff3207fd7950c6dfb2d0a3
+  size: 52065752
+  path: hdbscan_30mcs_5ms_mooring_alpha_shape_polygons_with_euclidean_distance.geojson
