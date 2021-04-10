@@ -1,6 +1,6 @@
 import math
 import json
-from shapely.geometry import shape, Point, MultiLineString, Polygon
+from shapely.geometry import shape, Point, MultiLineString, Polygon, MultiPolygon
 from scipy.spatial import Delaunay
 import numpy as np
 from shapely import ops
@@ -200,7 +200,12 @@ def polygon_to_meters(polygon, avg_lat=None):
 
     if not avg_lat:
 
-        avg_lat = get_avg_lat(polygon.exterior.coords)
+        if isinstance(polygon, Polygon):
+
+            avg_lat = get_avg_lat(polygon.exterior.coords)
+
+        elif isinstance(polygon, MultiPolygon):
+            avg_lat = get_avg_lat(get_multipolygon_exterior(polygon))
 
     def shape_to_meters(lat, lng, avg_lat):
         x = lng * math.cos(math.radians(avg_lat)) * METERS_IN_DEG
@@ -236,10 +241,27 @@ def merge_polygons(geo_df):
     return merged_polygons
 
 
+def get_multipolygon_exterior(multipolygon):
+    coordinates = []
+
+    polygons_list = list(multipolygon)
+
+    for polygon in polygons_list:
+        coordinates.extend([(x[0], x[1]) for x in list(polygon.exterior.coords)])
+
+    return coordinates
+
+
 def polygon_to_wgs84(polygon, avg_lat=None):
 
     if not avg_lat:
-        avg_lat = get_avg_lat(polygon.exterior.coords)
+        if isinstance(polygon, Polygon):
+
+            avg_lat = get_avg_lat(polygon.exterior.coords)
+
+        elif isinstance(polygon, MultiPolygon):
+
+            avg_lat = get_avg_lat(get_multipolygon_exterior(polygon))
 
     def shape_to_wgs84(x, y, avg_lat):
         lng = x / math.cos(math.radians(avg_lat)) / METERS_IN_DEG
@@ -267,7 +289,7 @@ def inflate_polygon(polygon, meters, resolution=4):
     return polygon
 
 
-def merge_adjacent_polygons(geo_df, inflation_meter):
+def merge_adjacent_polygons(geo_df, inflation_meter=1000, aggfunc='mean'):
 
     inflated_df = geo_df.apply(lambda x: inflate_polygon(x['geometry'], inflation_meter), axis=1)
 
@@ -281,6 +303,6 @@ def merge_adjacent_polygons(geo_df, inflation_meter):
 
     merged_df = gpd.sjoin(geo_df, merged_inflated, how='left')
 
-    merged_df = merged_df.dissolve(by='index_right')
+    merged_df = merged_df.dissolve(by='index_right', aggfunc=aggfunc)
 
     return merged_inflated, merged_df
