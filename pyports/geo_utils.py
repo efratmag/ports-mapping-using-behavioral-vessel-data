@@ -1,15 +1,20 @@
 import math
+import pandas as pd
 import json
 from shapely.geometry import shape, Point, MultiLineString
 from scipy.spatial import Delaunay
 import numpy as np
 import geopandas as gpd
 import shapely
+from shapely.ops import nearest_points
 from shapely import ops
 from geopy.distance import distance, great_circle
 from scipy.spatial.distance import pdist
 from numba import jit, prange
+from scipy.sparse import dok_matrix, coo_matrix
 import logging
+from tqdm import tqdm
+logging.basicConfig(level=logging.INFO)
 
 
 R = 6378.1  # Radius of the Earth
@@ -316,6 +321,147 @@ def merge_polygons(geo_df):
     return merged_polygons
 
 
+def calc_nearest_shore(df, path_to_shoreline_file, method='euclidean'):
+    logging.info('loading and processing shoreline file - START')
+    shoreline_df = gpd.read_file(path_to_shoreline_file)
+    shoreline_multi_polygon = merge_polygons(shoreline_df)
+    logging.info('loading and processing shoreline file - END')
+    results_list = []
+    for row in tqdm(df['geometry'].iteritems()):
+        index, poly = row
+        if index % 100 == 0 and index != 0:
+            logging.info(f'{index} instances was calculated')
+        if poly.intersects(shoreline_multi_polygon):
+            distance = 0
+            results_list.append({f'distance_from_shore_{method}': distance})
+        else:
+            nearest_polygons_points = nearest_points(shoreline_multi_polygon, poly)
+            point1, point2 = (nearest_polygons_points[0].y, nearest_polygons_points[0].x), \
+                             (nearest_polygons_points[1].y, nearest_polygons_points[1].x)
+            if method == 'euclidean':
+                distance = np.linalg.norm(np.array(point1) - np.array(point2))
+            elif method == 'haversine':
+                distance = haversine(point1, point2)
+            else:
+                raise ValueError('method must be "euclidean" or "haversine"')
+            results_list.append({f'distance_from_shore_{method}': distance,
+                                 'nearest_shore_lat': point1[0],
+                                 'nearest_shore_lng': point1[1],
+                                 'nearest_point_lat': point2[0],
+                                 'nearest_point_lng': point2[1]})
+    results_df = pd.DataFrame(results_list)
+    shared_columns = set(results_df.columns).intersection(set(df.columns))
+    df = df.drop(shared_columns, axis=1)
+    df = pd.concat([df, results_df], axis=1)
+    return df
+
+
+def calc_polygon_distance_from_nearest_ww_polygon(polygon, polygons_df):
+    """takes a polygon and an array of ports centroids and returns the distance from the nearest port from the array"""
+    ww_polygons_centroids = np.array([polygons_df.geometry.centroid.x, polygons_df.geometry.centroid.y]).T
+    polygon_centroid = (polygon.centroid.x, polygon.centroid.y)
+    dists = np.linalg.norm((ww_polygons_centroids - polygon_centroid), axis=1)
+    return np.min(dists)
+
+
+@jit(parallel=True)
+def haversine_distances_parallel_sparse(d, threshold=7):
+    """Numba version of haversine distance.
+        Generates sparse matrix of pairwise distances by only adding points which are less than x (threshold) km afar"""
+
+    dist_mat = dok_matrix((d.shape[0], d.shape[0]))
+
+    for i in prange(d.shape[0]):
+        for j in range(i+1, d.shape[0]):
+            sin_0 = np.sin(0.5 * (d[i, 0] - d[j, 0]))
+            sin_1 = np.sin(0.5 * (d[i, 1] - d[j, 1]))
+            cos_0 = np.cos(d[i, 0]) * np.cos(d[j, 0])
+            hav_dist = 2 * np.arcsin(np.sqrt(sin_0 * sin_0 + cos_0 * sin_1 * sin_1))
+            # only add distance if below the threshold
+            if hav_dist * R < threshold:  # R is the radius of earth in kilometers
+                dist_mat[i, j] = hav_dist
+
+    dist_mat = dist_mat.tocoo()
+
+    return dist_mat
+
+
+def polygon_to_wgs84(polygon, avg_lat=None):
+
+    if not avg_lat:
+        if isinstance(polygon, Polygon):
+
+            avg_lat = get_avg_lat(polygon.exterior.coords)
+
+        elif isinstance(polygon, MultiPolygon):
+
+            avg_lat = get_avg_lat(get_multipolygon_exterior(polygon))
+
+    def shape_to_wgs84(x, y, avg_lat):
+        lng = x / math.cos(math.radians(avg_lat)) / METERS_IN_DEG
+        lat = y / METERS_IN_DEG
+        return lat, lng
+
+    def to_wgs84(x, y):
+        return tuple(reversed(shape_to_wgs84(x, y, avg_lat)))
+
+    return avg_lat, shape(ops.transform(to_wgs84, polygon))
+
+
+def polygon_to_meters(polygon, avg_lat=None):
+
+    if not avg_lat:
+
+        if isinstance(polygon, Polygon):
+
+            avg_lat = get_avg_lat(polygon.exterior.coords)
+
+        elif isinstance(polygon, MultiPolygon):
+            avg_lat = get_avg_lat(get_multipolygon_exterior(polygon))
+
+    def shape_to_meters(lat, lng, avg_lat):
+        x = lng * math.cos(math.radians(avg_lat)) * METERS_IN_DEG
+        y = lat * METERS_IN_DEG
+        return x, y
+
+    def to_meters(lng, lat):
+        return shape_to_meters(lat, lng, avg_lat)
+
+    return avg_lat, shape(ops.transform(to_meters, polygon))
+
+
+def get_avg_lat(coordinates):
+    s = sum(c[1] for c in coordinates)
+    return float(s) / len(coordinates)
+
+
+def inflate_polygon(polygon, meters, resolution=4):
+
+    avg_lat, polygon = polygon_to_meters(polygon)
+    polygon = polygon.buffer(meters, resolution=resolution)
+
+    _, polygon = polygon_to_wgs84(polygon, avg_lat)
+
+    return polygon
+
+
+def merge_adjacent_polygons(geo_df, inflation_meter=1000, aggfunc='mean'):
+
+    inflated_df = geo_df.apply(lambda x: inflate_polygon(x['geometry'], inflation_meter), axis=1)
+
+    inflated_df = gpd.GeoDataFrame(inflated_df, columns=['geometry'])
+
+    merged_inflated = merge_polygons(inflated_df)
+
+    merged_inflated = [merged_inflated] if isinstance(merged_inflated, Polygon) else list(merged_inflated)
+
+    merged_inflated = gpd.GeoDataFrame(merged_inflated, columns=['geometry'])
+
+    merged_df = gpd.sjoin(geo_df, merged_inflated, how='left')
+
+    merged_df = merged_df.dissolve(by='index_right', aggfunc=aggfunc)
+
+    return merged_inflated, merged_df
 
 
 
