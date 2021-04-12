@@ -1,0 +1,4 @@
+outs:
+- md5: 9eb0c754bc6f54e968404490b2d0f4e0
+  size: 75024696
+  path: locations.csv

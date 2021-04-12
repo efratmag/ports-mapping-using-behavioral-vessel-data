@@ -10,6 +10,7 @@ from pyports.geo_utils import *
 from tqdm import tqdm
 
 
+# TODO: generlize paths
 ACTIVITY = 'mooring'
 FILE_NAME = f'df_for_clustering_{ACTIVITY}.csv'  # df with lat lng of all anchoring activities
 PATH = '/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/features/'  # features folder
@@ -87,11 +88,13 @@ def main(path=PATH,
 
     # TODO: generalize path
     ports_df = gpd.read_file('maps/ports.json')
-    polygons_df = gpd.read_file('maps/polygons.geojson')
+    polygons_df = gpd.read_file('maps/polygons.geojson')  # WW polygons
 
     clust_polygons = polygenize_clusters_with_features(df, ports_df, locations, clusterer)
     clust_polygons = polygon_intersection(clust_polygons, polygons_df)
-    #clust_polygons = calc_nearest_shore(clust_polygons, path_to_shoreline_file)
+    clust_polygons = calc_nearest_shore(clust_polygons, path_to_shoreline_file, method='euclidean')
+    clust_polygons['dist_to_ww_poly'] = clust_polygons.geometry.apply(
+        lambda x: calc_polygon_distance_from_nearest_ww_polygon(x, polygons_df))
 
     geo_df_clust_polygons = gpd.GeoDataFrame(clust_polygons)
 

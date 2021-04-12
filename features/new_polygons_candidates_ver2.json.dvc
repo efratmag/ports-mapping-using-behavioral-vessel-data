@@ -1,0 +1,4 @@
+outs:
+- md5: eddcc278557bd3ebca39a2231709b948
+  size: 2685094
+  path: new_polygons_candidates_ver2.json
