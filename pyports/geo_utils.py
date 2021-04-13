@@ -67,7 +67,7 @@ def haversine(lonlat1, lonlat2):
     dlat = lat2 - lat1
     a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
     c = 2 * math.asin(math.sqrt(a))
-    
+
     return c * R
 
 
@@ -357,10 +357,11 @@ def calc_nearest_shore(df, path_to_shoreline_file, method='euclidean'):
 
 
 def calc_polygon_distance_from_nearest_ww_polygon(polygon, polygons_df):
-    """takes a polygon and an array of ports centroids and returns the distance from the nearest port from the array"""
+    """takes a polygon and an array of ports centroids
+    and returns the distance in km from the nearest port from the array"""
     ww_polygons_centroids = np.array([polygons_df.geometry.centroid.x, polygons_df.geometry.centroid.y]).T
     polygon_centroid = (polygon.centroid.x, polygon.centroid.y)
-    dists = np.linalg.norm((ww_polygons_centroids - polygon_centroid), axis=1)
+    dists = [haversine(ww_poly_centroid, polygon_centroid) for ww_poly_centroid in ww_polygons_centroids]
     return np.min(dists)
 
 
