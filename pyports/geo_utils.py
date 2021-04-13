@@ -272,7 +272,7 @@ def get_ports_centroid_array(ports_df):
 def calc_polygon_distance_from_nearest_port(polygon, ports_centroids):
     """takes a polygon and an array of ports centroids and returns the distance from the nearest port from the array"""
     polygon_centroid = (polygon.centroid.x, polygon.centroid.x)
-    dists = np.sum((ports_centroids - polygon_centroid)**2, axis=1)
+    dists = [haversine(port_centroid, polygon_centroid) for port_centroid in ports_centroids]
     return np.min(dists)
 
 
