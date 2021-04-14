@@ -1,0 +1,4 @@
+outs:
+- md5: 3b8af9023b88551264ff1ca94981e4f9
+  size: 29241795
+  path: hdbscan_20mcs_10ms_anchoring_polygons.json
