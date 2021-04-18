@@ -1,10 +1,12 @@
 import pandas as pd
 import os
+import numpy as np
 import hdbscan
 from pyproj import Geod
 from shapely.geometry import MultiPoint
 from shapely.ops import transform, nearest_points
 import geopandas as gpd
+from tqdm import tqdm
 import pickle
 import logging
 import fire
@@ -12,41 +14,60 @@ from pyports.polygon_intersection import polygon_intersection
 from pyports.geo_utils import is_in_polygon, calc_polygon_area_sq_unit, polygons_to_multi_lines, merge_polygons, \
     haversine
 
+
 FILE_NAME = 'df_for_clustering.csv'  # df with lat lng of all anchoring activities
 PATH = '/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/features/'  # features folder
 
 geod = Geod(ellps="WGS84")
 
 
-def calc_nearest_shore(df, path_to_shoreline_file):
+def calc_nearest_shore(df, path_to_shoreline_file, method='euclidean'):
 
     logging.info('loading and processing shoreline file - START')
     shoreline_df = gpd.read_file(path_to_shoreline_file)
-    shoreline_multi_line = polygons_to_multi_lines(shoreline_df)
     shoreline_multi_polygon = merge_polygons(shoreline_df)
     logging.info('loading and processing shoreline file - END')
 
-    for poly in range(df.shape[0]):
+    results_list = []
 
-        if poly % 100==0 and poly != 0:
-            logging.info(f'{poly} instances was calculated')
+    for row in tqdm(df['geometry'].iteritems()):
 
-        polygon_center = df.loc[poly, 'geometry'].centroid
+        index, poly = row
 
-        if polygon_center.within(shoreline_multi_polygon):
-            df.loc[poly, 'distance_from_shore'] = 0
+        if index % 100 == 0 and index != 0:
+            logging.info(f'{index} instances was calculated')
+
+        if poly.intersects(shoreline_multi_polygon):
+            distance = 0
+
+            results_list.append({f'distance_from_shore_{method}': distance})
 
         else:
-            nearest_shore = nearest_points(shoreline_multi_line, polygon_center)[0]
-            df.loc[poly, 'distance_from_shore'] = haversine((nearest_shore.y, nearest_shore.x),
-                                                            (polygon_center.y, polygon_center.x))
+            nearest_polygons_points = nearest_points(shoreline_multi_polygon, poly)
 
-            # I added nearest_shore and polygons centroid for QA purposes
-            df.loc[poly, 'nearest_shore_lat'] = nearest_shore.y
-            df.loc[poly, 'nearest_shore_lng'] = nearest_shore.x
+            point1, point2 = (nearest_polygons_points[0].y, nearest_polygons_points[0].x), \
+                             (nearest_polygons_points[1].y, nearest_polygons_points[1].x)
 
-        df.loc[poly, 'centroid_lat'] = polygon_center.y
-        df.loc[poly, 'centroid_lng'] = polygon_center.x
+            if method == 'euclidean':
+                distance = np.linalg.norm(np.array(point1) - np.array(point2))
+            elif method == 'haversine':
+                distance = haversine(point1, point2)
+            else:
+                raise ValueError('method must be "euclidean" or "haversine"')
+
+            results_list.append({f'distance_from_shore_{method}': distance,
+                                 'nearest_shore_lat': point1[0],
+                                 'nearest_shore_lng': point1[1],
+                                 'nearest_point_lat': point2[0],
+                                 'nearest_point_lng': point2[1]})
+
+    results_df = pd.DataFrame(results_list)
+
+    shared_columns = set(results_df.columns).intersection(set(df.columns))
+
+    df = df.drop(shared_columns, axis=1)
+
+    df = pd.concat([df, results_df], axis=1)
 
     return df
 
