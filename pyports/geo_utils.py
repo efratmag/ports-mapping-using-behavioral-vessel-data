@@ -307,13 +307,17 @@ def merge_polygons(geo_df):
 
 
 def calc_nearest_shore(df, path_to_shoreline_file, method='euclidean'):
+
     logging.info('loading and processing shoreline file - START')
     shoreline_df = gpd.read_file(path_to_shoreline_file)
     shoreline_multi_polygon = merge_polygons(shoreline_df)
     logging.info('loading and processing shoreline file - END')
+
     results_list = []
+
     for row in tqdm(df['geometry'].iteritems()):
         index, poly = row
+
         if index % 100 == 0 and index != 0:
             logging.info(f'{index} instances was calculated')
         if poly.intersects(shoreline_multi_polygon):
@@ -329,11 +333,13 @@ def calc_nearest_shore(df, path_to_shoreline_file, method='euclidean'):
                 distance = haversine(point1, point2)
             else:
                 raise ValueError('method must be "euclidean" or "haversine"')
+
             results_list.append({f'distance_from_shore_{method}': distance,
                                  'nearest_shore_lat': point1[0],
                                  'nearest_shore_lng': point1[1],
                                  'nearest_point_lat': point2[0],
                                  'nearest_point_lng': point2[1]})
+
     results_df = pd.DataFrame(results_list)
     shared_columns = set(results_df.columns).intersection(set(df.columns))
     df = df.drop(shared_columns, axis=1)
