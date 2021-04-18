@@ -1,7 +1,7 @@
 import math
 import pandas as pd
 import json
-from shapely.geometry import shape, Point, MultiLineString
+from shapely.geometry import shape, Point, MultiLineString, Polygon, MultiPolygon
 from scipy.spatial import Delaunay
 import numpy as np
 import geopandas as gpd
@@ -204,21 +204,6 @@ def alpha_shape(points, alpha, only_outer=True):
     m = MultiLineString(edge_points)
     triangles = list(ops.polygonize(m))
     return ops.cascaded_union(triangles), edge_points, edges
-
-
-def polygon_to_meters(polygon):
-
-    avg_lat = polygon.centroid.y
-
-    def shape_to_meters(lat, lng, avg_lat):
-        x = lng * math.cos(math.radians(avg_lat)) * METERS_IN_DEG
-        y = lat * METERS_IN_DEG
-        return x, y
-
-    def to_meters(lng, lat):
-        return shape_to_meters(lat, lng, avg_lat)
-
-    return shape(ops.transform(to_meters, polygon))
 
 
 def calc_polygon_area_sq_unit(polygon, unit='sqkm'):
