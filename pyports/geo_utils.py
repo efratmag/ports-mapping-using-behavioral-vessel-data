@@ -371,6 +371,17 @@ def haversine_distances_parallel_sparse(d, threshold=7):
     return dist_mat
 
 
+def get_multipolygon_exterior(multipolygon):
+    coordinates = []
+
+    polygons_list = list(multipolygon)
+
+    for polygon in polygons_list:
+        coordinates.extend([(x[0], x[1]) for x in list(polygon.exterior.coords)])
+
+    return coordinates
+
+
 def polygon_to_wgs84(polygon, avg_lat=None):
 
     if not avg_lat:
