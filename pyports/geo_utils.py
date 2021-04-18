@@ -5,13 +5,12 @@ from shapely.geometry import shape, Point, MultiLineString, Polygon, MultiPolygo
 from scipy.spatial import Delaunay
 import numpy as np
 import geopandas as gpd
-import shapely
 from shapely.ops import nearest_points
 from shapely import ops
 from geopy.distance import distance, great_circle
 from scipy.spatial.distance import pdist
 from numba import jit, prange
-from scipy.sparse import dok_matrix, coo_matrix
+from scipy.sparse import dok_matrix
 import logging
 from tqdm import tqdm
 logging.basicConfig(level=logging.INFO)
@@ -254,11 +253,16 @@ def get_ports_centroid_array(ports_df):
     return ports_centroids
 
 
-def calc_polygon_distance_from_nearest_port(polygon, ports_centroids):
-    """takes a polygon and an array of ports centroids and returns the distance from the nearest port from the array"""
-    polygon_centroid = (polygon.centroid.x, polygon.centroid.x)
+def calc_polygon_distance_from_nearest_port(polygon, ports_df):
+    """takes a polygon and ports df,
+     calculate haversine distances from ports to polygon,
+     returns: the name of nearest port and distance from it"""
+    ports_centroids = ports_df.loc[:, ['lng', 'lat']].to_numpy()
+    polygon_centroid = (polygon.centroid.x, polygon.centroid.y)
     dists = [haversine(port_centroid, polygon_centroid) for port_centroid in ports_centroids]
-    return np.min(dists)
+    min_dist = np.min(dists)
+    name_of_nearest_port = ports_df.loc[dists.index(min_dist), 'name']
+    return min_dist, name_of_nearest_port
 
 
 def geodesic_distance(x, y):
