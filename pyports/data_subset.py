@@ -9,7 +9,7 @@ import os
 
 FILE_NAME = 'all_activities.csv.gz'  # df of all activities
 PATH = '/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/features' # features folder
-ACTIVITY = 'mooring'
+ACTIVITY = 'anchoring'
 
 # read full df in chunks
 tfr = pd.read_csv(os.path.join(PATH, FILE_NAME),

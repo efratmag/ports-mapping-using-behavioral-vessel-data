@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 import hdbscan
-from shapely.geometry import MultiPoint
+from shapely.geometry import MultiPoint, Polygon
 import geopandas as gpd
 import pickle
 import logging
@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 
 # TODO: generlize paths
-ACTIVITY = 'mooring'
+ACTIVITY = 'anchoring'
 FILE_NAME = f'df_for_clustering_{ACTIVITY}.csv'  # df with lat lng of all anchoring activities
 PATH = '/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/features/'  # features folder
 SHORELINE_FNAME = 'shoreline_layer.geojson'
@@ -39,13 +39,15 @@ def polygenize_clusters_with_features(df_for_clustering,
     for cluster in tqdm(range(clusters.max() + 1), position=0, leave=True):
         points = locations[clusters == cluster]
         polygon = alpha_shape(points, 4)[0]
-        polygon = ops.transform(flip, polygon)  # flip lat lng
+        polygon = ops.transform(flip, polygon)  # flip lat lng # TODO: make the order right from the start
 
         # polygon = MultiPoint(points).convex_hull
 
         clust_polygons.loc[cluster, 'label'] = f'cluster {cluster}'
         clust_polygons.at[cluster, 'probs_of_belonging_to_clust'] = \
             transform_numbers_array_to_string(clusterer.probabilities_[clusters == cluster])
+        clust_polygons.loc[cluster,'mean_prob_of_belonging_to_cluster'] = \
+            clusterer.probabilities_[clusters == cluster].mean()
         clust_polygons.at[cluster, 'geometry'] = polygon
         clust_polygons.loc[cluster, 'num_points'] = len(points)
         clust_polygons.loc[cluster, 'area_sqkm'] = calc_polygon_area_sq_unit(polygon)
@@ -92,9 +94,10 @@ def main(path=PATH,
 
     clust_polygons = polygenize_clusters_with_features(df, ports_df, locations, clusterer)
     clust_polygons = polygon_intersection(clust_polygons, polygons_df)
-    clust_polygons = calc_nearest_shore(clust_polygons, path_to_shoreline_file, method='euclidean')
-    clust_polygons['dist_to_ww_poly'] = clust_polygons.geometry.apply(
-        lambda x: calc_polygon_distance_from_nearest_ww_polygon(x, polygons_df))
+    if ACTIVITY == 'mooring':
+        clust_polygons = calc_nearest_shore(clust_polygons, path_to_shoreline_file, method='euclidean')
+        clust_polygons['dist_to_ww_poly'] = clust_polygons.geometry.apply(
+            lambda x: calc_polygon_distance_from_nearest_ww_polygon(x, polygons_df))
 
     geo_df_clust_polygons = gpd.GeoDataFrame(clust_polygons)
 
@@ -102,7 +105,7 @@ def main(path=PATH,
     pkl_model_fname = f'hdbscan_{hdbscan_min_cluster_zise}mcs_{hdbscan_min_samples}ms_{ACTIVITY}'
     clust_polygons_fname = pkl_model_fname + '_polygons.json'
 
-    with open('models/' + pkl_model_fname, 'wb') as file:
+    with open('models/' + pkl_model_fname + '.pkl', 'wb') as file:
         pickle.dump(clusterer, file)
     geo_df_clust_polygons.to_file('maps/' + clust_polygons_fname, driver="GeoJSON")
 
