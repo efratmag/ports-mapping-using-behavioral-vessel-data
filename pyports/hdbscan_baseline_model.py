@@ -1,10 +1,8 @@
-import pandas as pd
 import os
 import hdbscan
 from shapely.geometry import MultiPoint, Polygon
 import geopandas as gpd
 import pickle
-import logging
 import fire
 from pyports.geo_utils import *
 from tqdm import tqdm
