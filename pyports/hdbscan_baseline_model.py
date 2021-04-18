@@ -28,8 +28,6 @@ def polygenize_clusters_with_features(df_for_clustering,
                                       locations,
                                       clusterer):
 
-    ports_centroids = ports_df.loc[:, ['lng', 'lat']].to_numpy()
-
     clusters = clusterer.labels_
 
     clust_polygons = pd.DataFrame()
@@ -55,7 +53,9 @@ def polygenize_clusters_with_features(df_for_clustering,
         clust_polygons.loc[cluster, 'median_duration'] = \
             df_for_clustering.loc[clusters == cluster, 'duration'].median()
         clust_polygons.loc[cluster, 'distance_from_nearest_port'] = \
-            calc_polygon_distance_from_nearest_port(polygon, ports_centroids)
+            calc_polygon_distance_from_nearest_port(polygon, ports_df)[0]
+        clust_polygons.loc[cluster, 'name_of_nearest_port'] = \
+            calc_polygon_distance_from_nearest_port(polygon, ports_df)[1]
         clust_polygons.loc[cluster, 'n_unique_vesselID'] = \
             df_for_clustering.loc[clusters == cluster, 'vesselId'].nunique()
         clust_polygons.loc[cluster, 'percent_unique_vesselID'] = \
