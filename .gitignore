@@ -3,3 +3,4 @@
 *.iml
 *.pyc
 /README.md
+pyports/rds-combined-ca-bundle.pem
