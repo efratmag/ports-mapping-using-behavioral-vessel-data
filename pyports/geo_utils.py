@@ -5,6 +5,7 @@ from shapely.geometry import shape, Point, MultiLineString, Polygon, MultiPolygo
 from scipy.spatial import Delaunay
 import numpy as np
 import geopandas as gpd
+import shapely
 from shapely.ops import nearest_points
 from shapely import ops
 from geopy.distance import distance, great_circle
@@ -322,7 +323,7 @@ def calc_nearest_shore(df, path_to_shoreline_file, method='euclidean'):
 
     for row in tqdm(df['geometry'].iteritems()):
         index, poly = row
-
+        poly = shapely.wkt.loads(poly)
         if index % 100 == 0 and index != 0:
             logging.info(f'{index} instances was calculated')
         if poly.intersects(shoreline_multi_polygon):
