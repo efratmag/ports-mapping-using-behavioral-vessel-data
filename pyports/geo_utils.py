@@ -208,7 +208,7 @@ def alpha_shape(points, alpha, only_outer=True):
 def calc_polygon_area_sq_unit(polygon, unit='sqkm'):
 
     polygon = polygon_to_meters(polygon)
-    polygon_area = np.sqrt(polygon.area) / UNIT_RESOLVER[unit]
+    polygon_area = np.sqrt(polygon[1].area) / UNIT_RESOLVER[unit]
     polygon_area *= polygon_area
 
     return polygon_area
@@ -234,9 +234,10 @@ def polygon_intersection(clust_polygons, ww_polygons):
     :return: geopandas dataframe with extra feature of intersection of polygons with windward's polygons
     """
     for i, clust_poly in enumerate(clust_polygons.geometry):
+        clust_poly = shapely.wkt.loads(clust_poly)
         for j, ww_poly in enumerate(ww_polygons.geometry):
             if clust_poly.intersects(ww_poly):
-                clust_polygons.loc[i,'intersection'] = clust_poly.intersection(ww_poly).area/clust_poly.area * 100
+                clust_polygons.loc[i, 'intersection'] = clust_poly.intersection(ww_poly).area/clust_poly.area * 100
     return clust_polygons
 
 
@@ -471,5 +472,9 @@ def merge_adjacent_polygons(geo_df, inflation_meter=1000, aggfunc='mean'):
     return merged_inflated, merged_df
 
 
+def calc_entropy(feature):
+    """ takes categorical feature values and returns the column's entropy"""
+    vc = pd.Series(feature).value_counts(normalize=True, sort=False)
+    return -(vc * np.log(vc) / np.log(math.e)).sum()
 
 
