@@ -1,7 +1,5 @@
 import os
 import hdbscan
-from shapely.geometry import MultiPoint, Polygon
-import geopandas as gpd
 import pickle
 import fire
 from pyports.geo_utils import *
@@ -42,9 +40,9 @@ def polygenize_clusters_with_features(df_for_clustering,
         clust_polygons.loc[cluster, 'label'] = f'cluster {cluster}'
         clust_polygons.at[cluster, 'probs_of_belonging_to_clust'] = \
             transform_numbers_array_to_string(clusterer.probabilities_[clusters == cluster])
-        clust_polygons.loc[cluster,'mean_prob_of_belonging_to_cluster'] = \
+        clust_polygons.loc[cluster, 'mean_prob_of_belonging_to_cluster'] = \
             clusterer.probabilities_[clusters == cluster].mean()
-        clust_polygons.at[cluster, 'geometry'] = polygon
+        clust_polygons.at[cluster, 'geometry'] = polygon.wkt
         clust_polygons.loc[cluster, 'num_points'] = len(points)
         clust_polygons.loc[cluster, 'area_sqkm'] = calc_polygon_area_sq_unit(polygon)
         clust_polygons.loc[cluster, 'density'] = calc_cluster_density(points)
@@ -62,6 +60,15 @@ def polygenize_clusters_with_features(df_for_clustering,
             clust_polygons.loc[cluster, 'n_unique_vesselID'] / len(points)
         clust_polygons.at[cluster, 'vesselIDs'] = \
             ','.join(df_for_clustering.loc[clusters == cluster, 'vesselId'].to_numpy())
+        clust_polygons.loc[cluster, 'most_freq_vessel_type'] = \
+            df_for_clustering.loc[clusters == cluster, 'class_new'].mode()[0]
+        clust_polygons.loc[cluster, 'vessel_type_variance'] = \
+            calc_entropy(df_for_clustering.loc[clusters == cluster, 'class_new'])
+        if ACTIVITY == 'anchoring':
+            clust_polygons.loc[cluster, 'most_freq_destination'] = \
+                df_for_clustering.loc[clusters == cluster, 'nextPort_name'].mode()[0]
+            clust_polygons.loc[cluster, 'destination_variance'] = \
+                calc_entropy(df_for_clustering.loc[clusters == cluster, 'nextPort_name'])
 
     return clust_polygons
 
@@ -73,7 +80,7 @@ def main(path=PATH,
          polygon_fname=None):
 
     # import df and clean it
-    df = pd.read_csv(os.path.join(path, df_for_clustering_fname))
+    df = pd.read_csv(os.path.join(path, df_for_clustering_fname), low_memory=False)
     df = df.drop_duplicates(subset=['firstBlip_lat', 'firstBlip_lng'])  # drop duplicates
     if polygon_fname:  # take only area of the data, e.g. 'maps/mediterranean.geojson'
         df = df[df.apply(lambda x: is_in_polygon(x['firstBlip_lng'], x['firstBlip_lat'], polygon_fname), axis=1)]
