@@ -108,28 +108,6 @@ def isin_box(lat, lng, bounds):
     return within
 
 
-def is_in_polygon(lng, lat, polygon_fname):
-
-    """
-    checks if a point is inside a polygon
-    :param lng: long of point
-    :param lat: latitude of point
-    :param polygon_fname: the polygon file name for which to test if the point is inside of. can take manually defined in geojson.io
-    :return: boolean
-    """
-
-    with open(polygon_fname) as f:
-        polygon = json.load(f)
-
-    point = Point(lng, lat)
-
-    for feature in polygon['features']:
-        poly = shape(feature['geometry'])
-        verdict = poly.contains(point)
-
-    return verdict
-
-
 def is_in_polygon_features(df):
     df['firstBlip_in_polygon'] = df['firstBlip_polygon_id'].notna()
 
@@ -208,8 +186,8 @@ def alpha_shape(points, alpha, only_outer=True):
 
 def calc_polygon_area_sq_unit(polygon, unit='sqkm'):
 
-    polygon = polygon_to_meters(polygon)
-    polygon_area = np.sqrt(polygon[1].area) / UNIT_RESOLVER[unit]
+    avg_lat, polygon = polygon_to_meters(polygon)
+    polygon_area = np.sqrt(polygon.area) / UNIT_RESOLVER[unit]
     polygon_area *= polygon_area
 
     return polygon_area
@@ -474,7 +452,8 @@ def merge_adjacent_polygons(geo_df, inflation_meter=1000, aggfunc='mean'):
 
 
 def calc_entropy(feature):
-    """ takes categorical feature values and returns the column's entropy"""
+    """ takes categorical feature values and returns the column's entropy
+    The maximum value of entropy is log𝑘, where 𝑘 is the number of categories you are using."""
     vc = pd.Series(feature).value_counts(normalize=True, sort=False)
     return -(vc * np.log(vc) / np.log(math.e)).sum()
 

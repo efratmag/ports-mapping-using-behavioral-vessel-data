@@ -2,6 +2,7 @@ import os
 import hdbscan
 import pickle
 import fire
+import geopandas as gpd
 from pyports.geo_utils import *
 from tqdm import tqdm
 
@@ -14,38 +15,30 @@ SHORELINE_FNAME = 'shoreline_layer.geojson'
 path_to_shoreline_file = os.path.join('/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/maps/', SHORELINE_FNAME)
 
 
-def transform_numbers_array_to_string(array):
-    """converts list of numbers to delimited string"""
-    x_arrstr = np.char.mod('%f', array)
-    x_str = ",".join(x_arrstr)
-    return x_str
-
-
 def polygenize_clusters_with_features(df_for_clustering,
                                       ports_df,
-                                      locations,
-                                      clusterer):
+                                      alpha, blip):
 
-    clusters = clusterer.labels_
+    df_for_clustering = df_for_clustering[df_for_clustering.cluster_label != -1]  # remove clustering outlier points
 
-    clust_polygons = pd.DataFrame()
+    clust_polygons = []
 
-    for cluster in tqdm(range(clusters.max() + 1), position=0, leave=True):
-        points = locations[clusters == cluster]
-        polygon = alpha_shape(points, 4)[0]
-        polygon = ops.transform(flip, polygon)  # flip lat lng # TODO: make the order right from the start
+    for cluster in tqdm(df_for_clustering.cluster_label.unique()):
+        record = {}
+        cluster_df = df_for_clustering[df_for_clustering.cluster_label == cluster]
+        points = cluster_df[[f'{blip}Blip_lng', f'{blip}Blip_lat']].to_numpy()
+        polygon = alpha_shape(points, alpha)[0]
 
         # polygon = MultiPoint(points).convex_hull
+        record['label'] = f'cluster {cluster}'
 
-        clust_polygons.loc[cluster, 'label'] = f'cluster {cluster}'
-        clust_polygons.at[cluster, 'probs_of_belonging_to_clust'] = \
-            transform_numbers_array_to_string(clusterer.probabilities_[clusters == cluster])
-        clust_polygons.loc[cluster, 'mean_prob_of_belonging_to_cluster'] = \
-            clusterer.probabilities_[clusters == cluster].mean()
-        clust_polygons.at[cluster, 'geometry'] = polygon.wkt
-        clust_polygons.loc[cluster, 'num_points'] = len(points)
-        clust_polygons.loc[cluster, 'area_sqkm'] = calc_polygon_area_sq_unit(polygon)
-        clust_polygons.loc[cluster, 'density'] = calc_cluster_density(points)
+        record['probs_of_belonging_to_clust'] = ', '.join(cluster_df['cluster_probability'].astype(str).to_list())
+        record['mean_prob_of_belonging_to_cluster'] = cluster_df['cluster_probability'].mean()
+        record['geometry'] = polygon
+        record['num_points'] = cluster_df.shape[0]
+        record['area_sqkm'] = calc_polygon_area_sq_unit(polygon)
+
+        record['density'] = calc_cluster_density(points)
         clust_polygons.loc[cluster, 'mean_duration'] = \
             df_for_clustering.loc[clusters == cluster, 'duration'].mean()
         clust_polygons.loc[cluster, 'median_duration'] = \
@@ -73,38 +66,55 @@ def polygenize_clusters_with_features(df_for_clustering,
     return clust_polygons
 
 
-def main(path=PATH,
-         df_for_clustering_fname=FILE_NAME,
+def main(path, activity='anchoring', blip='first',
          hdbscan_min_cluster_zise=30, hdbscan_min_samples=5,
-         distance_metric='euclidean',
-         polygon_fname=None):
+         distance_metric='euclidean', alpha=4,
+         sub_area_polygon_fname=None):
+
+    df_for_clustering_fname = f'df_for_clustering_{activity}.csv'
 
     # import df and clean it
+    # TODO: take raw data and add features- seperate lat lng, vessel type new class, within polygon etc.
+    logging.info('Loading data...')
     df = pd.read_csv(os.path.join(path, df_for_clustering_fname), low_memory=False)
-    df = df.drop_duplicates(subset=['firstBlip_lat', 'firstBlip_lng'])  # drop duplicates
-    if polygon_fname:  # take only area of the data, e.g. 'maps/mediterranean.geojson'
-        df = df[df.apply(lambda x: is_in_polygon(x['firstBlip_lng'], x['firstBlip_lat'], polygon_fname), axis=1)]
+    df = df.drop_duplicates(subset=[f'{blip}Blip_lat', f'{blip}Blip_lng'])  # drop duplicates
+    df.nextPort_name.fillna('UNKNOWN', inplace=True)  # fill empty next port names
+    if sub_area_polygon_fname:  # take only area of the data, e.g. 'maps/mediterranean.geojson'
+        logging.info('Calculating points within sub area...')
+        sub_area_polygon = gpd.read_file(os.path.join(path, sub_area_polygon_fname)).loc[0, 'geometry']
+        df = df[df.apply(lambda x: Point(x[f'{blip}Blip_lng'], x[f'{blip}Blip_lat']).within(sub_area_polygon), axis=1)]
 
-    locations = df[['firstBlip_lat', 'firstBlip_lng']].to_numpy()
+    ports_df = gpd.read_file('maps/ports.json')
+    polygons_df = gpd.read_file('maps/polygons.geojson')  # WW polygons
+
+    logging.info('Finished loading data!')
+
+    locations = df[[f'{blip}Blip_lat', f'{blip}Blip_lng']].to_numpy()  # points for clustering
 
     # clustering
     clusterer = hdbscan.HDBSCAN(min_cluster_size=hdbscan_min_cluster_zise,
                                 min_samples=hdbscan_min_samples,
                                 metric=distance_metric)
+
+    logging.info('Starting clustering...')
+
     clusterer.fit(locations)
+    logging.info('Finished fitting clusterer!')
 
-    # TODO: generalize path
-    ports_df = gpd.read_file('maps/ports.json')
-    polygons_df = gpd.read_file('maps/polygons.geojson')  # WW polygons
+    logging.info('Starting feature extraction for clusters...')
 
-    clust_polygons = polygenize_clusters_with_features(df, ports_df, locations, clusterer)
+    df['cluster_label'] = clusterer.labels_
+    df['cluster_probability'] = clusterer.probabilities_
+
+    clust_polygons = polygenize_clusters_with_features(df, ports_df, alpha, blip)
     clust_polygons = polygon_intersection(clust_polygons, polygons_df)
+    clust_polygons = calc_nearest_shore(clust_polygons, path_to_shoreline_file, method='haversine')
     if ACTIVITY == 'mooring':
-        clust_polygons = calc_nearest_shore(clust_polygons, path_to_shoreline_file, method='euclidean')
         clust_polygons['dist_to_ww_poly'] = clust_polygons.geometry.apply(
             lambda x: calc_polygon_distance_from_nearest_ww_polygon(x, polygons_df))
 
     geo_df_clust_polygons = gpd.GeoDataFrame(clust_polygons)
+    geo_df_clust_polygons.geometry = geo_df_clust_polygons.geometry.apply(lambda x: shapely.wkt.loads(x))
 
     # save model and files
     pkl_model_fname = f'hdbscan_{hdbscan_min_cluster_zise}mcs_{hdbscan_min_samples}ms_{ACTIVITY}'
