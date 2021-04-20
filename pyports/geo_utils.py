@@ -2,6 +2,7 @@ import math
 import pandas as pd
 import json
 from shapely.geometry import shape, Point, MultiLineString, Polygon, MultiPolygon
+from sklearn.metrics.pairwise import haversine_distances
 from scipy.spatial import Delaunay
 import numpy as np
 import geopandas as gpd
@@ -9,7 +10,6 @@ import shapely
 from shapely.ops import nearest_points
 from shapely import ops
 from geopy.distance import distance, great_circle
-from scipy.spatial.distance import pdist
 from numba import jit, prange
 from scipy.sparse import dok_matrix
 import logging
@@ -221,11 +221,11 @@ def calc_cluster_density(points):
     :return: cluster density
     """
 
-    distances = pdist(points)
-    total_distance = distances.sum()
-    n_pairwise_comparisons = len(distances)
+    distances = haversine_distances(np.radians(points))
+    mean_squared_distance = np.square(distances).mean()
+    density = 1 / mean_squared_distance
 
-    return n_pairwise_comparisons / total_distance
+    return density
 
 
 def polygon_intersection(clust_polygons, ww_polygons):
