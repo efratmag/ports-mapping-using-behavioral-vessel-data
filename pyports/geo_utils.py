@@ -9,7 +9,7 @@ import shapely
 from shapely.ops import nearest_points
 from shapely import ops
 from geopy.distance import distance, great_circle
-from scipy.spatial.distance import pdist
+from sklearn.metrics.pairwise import haversine_distances
 from numba import jit, prange
 from scipy.sparse import dok_matrix
 import logging
@@ -199,11 +199,11 @@ def calc_cluster_density(points):
     :return: cluster density
     """
 
-    distances = pdist(points)
-    total_distance = distances.sum()
-    n_pairwise_comparisons = len(distances)
+    distances = haversine_distances(np.radians(points))
+    mean_squared_distane = np.squared(distances).mean()
+    mean_squared_distane_km = mean_squared_distane * R
 
-    return n_pairwise_comparisons / total_distance
+    return 1 / mean_squared_distane_km
 
 
 def polygon_intersection(clust_polygons, ww_polygons):
@@ -290,10 +290,10 @@ def merge_polygons(geo_df):
     return merged_polygons
 
 
-def calc_nearest_shore(df, path_to_shoreline_file, method='euclidean'):
+def calc_nearest_shore(df, shoreline_df, method='euclidean'):
 
     logging.info('loading and processing shoreline file - START')
-    shoreline_df = gpd.read_file(path_to_shoreline_file)
+
     shoreline_multi_polygon = merge_polygons(shoreline_df)
     logging.info('loading and processing shoreline file - END')
 
@@ -457,4 +457,7 @@ def calc_entropy(feature):
     vc = pd.Series(feature).value_counts(normalize=True, sort=False)
     return -(vc * np.log(vc) / np.log(math.e)).sum()
 
+
+def create_google_maps_link_to_centroid(centroid_lat, centroid_lng):
+    return f'https://maps.google.com/?ll={centroid_lat},{centroid_lng}'
 
