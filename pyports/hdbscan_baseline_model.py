@@ -99,12 +99,17 @@ def main(path=PATH,
 
     clust_polygons = polygenize_clusters_with_features(df, ports_df, locations, clusterer)
     clust_polygons = polygon_intersection(clust_polygons, polygons_df)
+
+    geo_df_clust_polygons = gpd.GeoDataFrame(clust_polygons)
+    geo_df_clust_polygons["geometry"] = geo_df_clust_polygons["geometry"].apply(lambda x: shapely.wkt.loads(x))
+    geo_df_clust_polygons["centroid"] = geo_df_clust_polygons["geometry"].centroid
+
     if ACTIVITY == 'mooring':
-        clust_polygons = calc_nearest_shore(clust_polygons, path_to_shoreline_file, method='euclidean')
+
+        clust_polygons = calc_nearest_shore(clust_polygons, path_to_shoreline_file, method='haversine')
         clust_polygons['dist_to_ww_poly'] = clust_polygons.geometry.apply(
             lambda x: calc_polygon_distance_from_nearest_ww_polygon(x, polygons_df))
 
-    geo_df_clust_polygons = gpd.GeoDataFrame(clust_polygons)
 
     # save model and files
     pkl_model_fname = f'hdbscan_{hdbscan_min_cluster_zise}mcs_{hdbscan_min_samples}ms_{ACTIVITY}'
