@@ -86,6 +86,9 @@ def main(path, activity='anchoring', blip='first',
 
     ports_df = gpd.read_file('maps/ports.json')
     polygons_df = gpd.read_file('maps/polygons.geojson')  # WW polygons
+    shoreline_df = gpd.read_file(path_to_shoreline_file)
+
+    main_land = merge_polygons(shoreline_df[:4])  # the big continents
 
     logging.info('Finished loading data!')
 
@@ -108,13 +111,17 @@ def main(path, activity='anchoring', blip='first',
 
     clust_polygons = polygenize_clusters_with_features(df, ports_df, alpha, blip)
     clust_polygons = polygon_intersection(clust_polygons, polygons_df)
-    clust_polygons = calc_nearest_shore(clust_polygons, path_to_shoreline_file, method='haversine')
+    clust_polygons = calc_nearest_shore(clust_polygons, shoreline_df, method='haversine')
     if ACTIVITY == 'mooring':
         clust_polygons['dist_to_ww_poly'] = clust_polygons.geometry.apply(
             lambda x: calc_polygon_distance_from_nearest_ww_polygon(x, polygons_df))
 
+    # TODO: transform to gpd earlier
     geo_df_clust_polygons = gpd.GeoDataFrame(clust_polygons)
     geo_df_clust_polygons.geometry = geo_df_clust_polygons.geometry.apply(lambda x: shapely.wkt.loads(x))
+    geo_df_clust_polygons['is_in_river'] = geo_df_clust_polygons['geometry'].apply(
+        lambda x: x.within(main_land))
+    geo_df_clust_polygons['centroid'] = geo_df_clust_polygons['geometry'].centroid
 
     # save model and files
     pkl_model_fname = f'hdbscan_{hdbscan_min_cluster_zise}mcs_{hdbscan_min_samples}ms_{ACTIVITY}'
