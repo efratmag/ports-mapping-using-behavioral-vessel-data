@@ -458,6 +458,7 @@ def calc_entropy(feature):
     return -(vc * np.log(vc) / np.log(math.e)).sum()
 
 
-def create_google_maps_link_to_centroid(centroid_lat, centroid_lng):
+def create_google_maps_link_to_centroid(centroid):
+    centroid_lat, centroid_lng = centroid.y, centroid.x
     return f'https://maps.google.com/?ll={centroid_lat},{centroid_lng}'
 
