@@ -2,7 +2,7 @@ import math
 import pandas as pd
 import json
 from shapely.geometry import shape, Point, MultiLineString, Polygon, MultiPolygon
- from scipy.spatial import Delaunay
+from scipy.spatial import Delaunay
 import numpy as np
 import geopandas as gpd
 import shapely
@@ -10,6 +10,7 @@ from shapely.ops import nearest_points
 from shapely import ops
 from geopy.distance import distance, great_circle
 from numba import jit, prange
+from sklearn.metrics.pairwise import haversine_distances
 from scipy.sparse import dok_matrix
 import logging
 from tqdm import tqdm
