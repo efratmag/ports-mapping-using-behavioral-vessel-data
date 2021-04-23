@@ -47,8 +47,7 @@ def today_str():
 def load_and_process_polygons_file(polygons_file_path, area_geohash=None):
 
     """
-    a function that loading the polygons file, converting to GeoPandas, and drops  polygons out of area snapshot
-    :param import_path: path to folder in which polygons_file_name
+    a function that loads the polygons file, converting to GeoPandas and drops polygons out of area snapshot
     :param polygons_file_path: i.e 'polygons.json'
     :param area_geohash: geohash of snapshot area
     :return:
