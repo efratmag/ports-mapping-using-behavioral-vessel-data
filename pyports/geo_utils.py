@@ -301,7 +301,7 @@ def calc_nearest_shore(df, shoreline_df, method='euclidean'):
 
     for row in tqdm(df['geometry'].iteritems()):
         index, poly = row
-        poly = shapely.wkt.loads(poly)
+        #poly = shapely.wkt.loads(poly)
         if index % 100 == 0 and index != 0:
             logging.info(f'{index} instances was calculated')
         if poly.intersects(shoreline_multi_polygon):
