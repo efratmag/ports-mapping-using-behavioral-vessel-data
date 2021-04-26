@@ -7,13 +7,7 @@ from pyports.geo_utils import *
 from pyports.rank_ports_candidates import main as rank_candidates
 from tqdm import tqdm
 
-
 # TODO: generalize paths
-# ACTIVITY = 'anchoring'
-# FILE_NAME = f'df_for_clustering_{ACTIVITY}.csv'  # df with lat lng of all anchoring activities
-# SHORELINE_FNAME = 'shoreline_layer.geojson'
-# path_to_shoreline_file = os.path.join('/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/maps/', SHORELINE_FNAME)
-
 
 def polygenize_clusters_with_features(df_for_clustering,
                                       ports_df, polygons_df,
@@ -40,7 +34,7 @@ def polygenize_clusters_with_features(df_for_clustering,
         record = {}
         cluster_df = df_for_clustering[df_for_clustering.cluster_label == cluster]  # sub-df for chosen cluster
         points = cluster_df[[f'{blip}Blip_lng', f'{blip}Blip_lat']].to_numpy()  # numpy array of lng/lat
-        polygon = create_polygon(points, polygon_type, alpha)  # create polygon from points
+        polygon = polygon_from_points(points, polygon_type, alpha)  # create polygon from points
 
         # cluster label
         record['label'] = f'cluster {cluster}'
