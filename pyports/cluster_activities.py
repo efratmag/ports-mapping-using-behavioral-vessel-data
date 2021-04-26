@@ -45,6 +45,8 @@ def polygenize_clusters_with_features(df_for_clustering,
         record['mean_prob_of_belonging_to_cluster'] = cluster_df['cluster_probability'].mean()
         # polygenized cluster
         record['geometry'] = polygon
+        # geojson format of the polygenized cluster
+        record['geojson'] = gpd.GeoSeries(polygon).to_json()
         # total number of points in cluster
         record['num_points'] = cluster_df.shape[0]
         # polygon area in sqkm
