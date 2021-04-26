@@ -17,6 +17,8 @@ from tqdm import tqdm
 logging.basicConfig(level=logging.INFO)
 
 
+# TODO: verify all lat lngs are in right order
+
 R = 6378.1  # Radius of the Earth
 SQUARE_FOOT_IN_SQUARE_METRE = 10.7639
 
@@ -200,24 +202,24 @@ def calc_cluster_density(points):
     """
 
     distances = haversine_distances(np.radians(points))
-    mean_squared_distane = np.squared(distances).mean()
+    mean_squared_distane = np.square(distances).mean()
     mean_squared_distane_km = mean_squared_distane * R
 
     return 1 / mean_squared_distane_km
 
 
-def polygon_intersection(clust_polygons, ww_polygons):
+def polygon_intersection(clust_polygon, ww_polygons):
     """
     :param clust_polygons: df of clustering polygons
     :param ww_polygons: df of windward polygons
     :return: geopandas dataframe with extra feature of intersection of polygons with windward's polygons
     """
-    for i, clust_poly in enumerate(clust_polygons.geometry):
-        clust_poly = shapely.wkt.loads(clust_poly)
-        for j, ww_poly in enumerate(ww_polygons.geometry):
-            if clust_poly.intersects(ww_poly):
-                clust_polygons.loc[i, 'intersection'] = clust_poly.intersection(ww_poly).area/clust_poly.area * 100
-    return clust_polygons
+    intersection_value = 0
+    temp_df = ww_polygons[ww_polygons.intersects(clust_polygon)]
+    if not temp_df.empty:
+        intersection_value = clust_polygon.intersection(temp_df.iloc[0]['geometry']).area / clust_polygon.area * 100
+
+    return intersection_value
 
 
 def flip(x, y):
@@ -291,6 +293,8 @@ def merge_polygons(geo_df):
 
 
 def calc_nearest_shore(df, shoreline_df, method='euclidean'):
+
+    #TODO cahnge to handle signle polygon
 
     logging.info('loading and processing shoreline file - START')
 
