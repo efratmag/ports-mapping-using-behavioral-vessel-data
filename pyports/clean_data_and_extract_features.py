@@ -2,7 +2,6 @@ from shapely.geometry import shape, Point
 
 from shapely import ops
 from pyports.geo_utils import haversine
-from pyports.area_snaptshot.area_snapshot import extract_coordinates
 import Geohash
 import os
 import fire
@@ -19,6 +18,26 @@ ACTIVITIES_FILES = ['mooring.csv.gz', 'drifting.csv.gz', 'port_calls.csv.gz', 'a
 
 VESSELS_RELEVANT_COLS = ['_id', 'class_calc', 'subclass_documented', 'built_year',
                          'name', 'deadweight', 'draught', 'size', 'age']
+
+
+def extract_coordinates(df, col='firstBlip'):
+
+    """
+    a function that extracts lat and lng from a Series with geometry dict
+    :param df: Dataframe with coordinates dict columns
+    :param col: name of column for coordinates extraction
+    :return:
+    """
+
+    if col+'_lng' not in df.columns and col+'_lat' not in df.columns:
+
+        logging.info(f'extracting coordinates for {col}...')
+        coordinates_df = df[col].dropna().apply(eval).apply(lambda x: x['geometry']['coordinates']).apply(pd.Series)
+        coordinates_df = coordinates_df.rename(columns={0: col+'_lng', 1: col+'_lat'})
+
+        df = df.merge(coordinates_df, left_index=True, right_index=True, how='left')
+
+    return df
 
 
 def load_and_process_polygons_file(polygons_file_path, area_geohash=None):
