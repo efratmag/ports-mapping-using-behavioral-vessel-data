@@ -11,7 +11,6 @@ from sklearn import preprocessing
 # TODO: generlize paths
 ACTIVITY = 'anchoring'
 FILE_NAME = f'df_for_clustering_{ACTIVITY}.csv'  # df with lat lng of all anchoring activities
-PATH = '/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/features/'  # features folder
 SHORELINE_FNAME = 'shoreline_layer.geojson'
 path_to_shoreline_file = os.path.join('/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/maps/', SHORELINE_FNAME)
 
@@ -34,8 +33,9 @@ aggfunc = {'num_points': 'sum',
 
 
 def polygenize_clusters_with_features(df_for_clustering,
-                                      ports_df,
-                                      alpha, blip):
+                                      ports_df, main_land,
+                                      polygons_df,
+                                      alpha=4, blip):
 
     df_for_clustering = df_for_clustering[df_for_clustering.cluster_label != -1]  # remove clustering outlier points
 
@@ -55,31 +55,30 @@ def polygenize_clusters_with_features(df_for_clustering,
         record['geometry'] = polygon
         record['num_points'] = cluster_df.shape[0]
         record['area_sqkm'] = calc_polygon_area_sq_unit(polygon)
-
         record['density'] = calc_cluster_density(points)
-        clust_polygons.loc[cluster, 'mean_duration'] = \
-            df_for_clustering.loc[clusters == cluster, 'duration'].mean()
-        clust_polygons.loc[cluster, 'median_duration'] = \
-            df_for_clustering.loc[clusters == cluster, 'duration'].median()
-        clust_polygons.loc[cluster, 'distance_from_nearest_port'] = \
-            calc_polygon_distance_from_nearest_port(polygon, ports_df)[0]
-        clust_polygons.loc[cluster, 'name_of_nearest_port'] = \
-            calc_polygon_distance_from_nearest_port(polygon, ports_df)[1]
-        clust_polygons.loc[cluster, 'n_unique_vesselID'] = \
-            df_for_clustering.loc[clusters == cluster, 'vesselId'].nunique()
-        clust_polygons.loc[cluster, 'percent_unique_vesselID'] = \
-            clust_polygons.loc[cluster, 'n_unique_vesselID'] / len(points)
-        clust_polygons.at[cluster, 'vesselIDs'] = \
-            ','.join(df_for_clustering.loc[clusters == cluster, 'vesselId'].to_numpy())
-        clust_polygons.loc[cluster, 'most_freq_vessel_type'] = \
-            df_for_clustering.loc[clusters == cluster, 'class_new'].mode()[0]
-        clust_polygons.loc[cluster, 'vessel_type_variance'] = \
-            calc_entropy(df_for_clustering.loc[clusters == cluster, 'class_new'])
+        record['mean_duration'] = cluster_df['duration'].mean()
+        record['median_duration'] = cluster_df['duration'].median()
+        record['distance_from_nearest_port'], record['name_of_nearest_port'] = calc_polygon_distance_from_nearest_port(polygon, ports_df)
+        record['n_unique_vesselID'] = cluster_df['vesselId'].nunique()
+        record['percent_unique_vesselID'] = cluster_df['vesselId'].nunique() / len(points)
+        record['vesselIDs'] = ', '.join(cluster_df['vesselId'].astype(str).to_list())
+        record['most_freq_vessel_type'] = cluster_df['class_new'].mode()[0]
+        record['vessel_type_variance'] = calc_entropy(cluster_df['class_new'])
+        record['is_in_river'] = calc_entropy(cluster_df['class_new'])
+        record['is_in_river'] = polygon.within(main_land)
+        record['centroid_lat'] = polygon.centroid.y
+        record['centroid_lng'] = polygon.centroid.x
+        record['pct_intersection'] = polygon_intersection(polygon, polygons_df)
+        record['dist_to_ww_poly'] = calc_polygon_distance_from_nearest_ww_polygon(polygon, polygons_df)
+
         if ACTIVITY == 'anchoring':
-            clust_polygons.loc[cluster, 'most_freq_destination'] = \
-                df_for_clustering.loc[clusters == cluster, 'nextPort_name'].mode()[0]
-            clust_polygons.loc[cluster, 'destination_variance'] = \
-                calc_entropy(df_for_clustering.loc[clusters == cluster, 'nextPort_name'])
+
+            record['most_freq_destination'] = cluster_df['nextPort_name'].mode()[0]
+            record['destination_variance'] = calc_entropy(cluster_df['nextPort_name'])
+
+        clust_polygons.append(record)
+
+    clust_polygons = gpd.GeoDataFrame(clust_polygons)
 
     return clust_polygons
 
@@ -102,7 +101,7 @@ def rank_candidates(geo_df_clust_polygons):
 def main(path, activity='anchoring', blip='first',
          hdbscan_min_cluster_zise=30, hdbscan_min_samples=5,
          distance_metric='euclidean', alpha=4,
-         sub_area_polygon_fname=None):
+         sub_area_polygon_fname=None, merge_near_polygons=False):
 
     df_for_clustering_fname = f'df_for_clustering_{activity}.csv'
 
@@ -139,28 +138,20 @@ def main(path, activity='anchoring', blip='first',
 
     logging.info('Starting feature extraction for clusters...')
 
+    # add for each point its cluster label and probability of belonging to it
     df['cluster_label'] = clusterer.labels_
     df['cluster_probability'] = clusterer.probabilities_
 
-    clust_polygons = polygenize_clusters_with_features(df, ports_df, alpha, blip)
+    clust_polygons = polygenize_clusters_with_features(df, ports_df, polygons_df, main_land, alpha, blip)
 
-    clust_polygons = polygon_intersection(clust_polygons, polygons_df)
     clust_polygons = calc_nearest_shore(clust_polygons, shoreline_df, method='haversine')
 
-    _, clust_polygons = merge_adjacent_polygons(clust_polygons, inflation_meter=1000, aggfunc=aggfunc)
+    if merge_near_polygons:
 
-    if ACTIVITY == 'mooring':
-        clust_polygons['dist_to_ww_poly'] = clust_polygons.geometry.apply(
-            lambda x: calc_polygon_distance_from_nearest_ww_polygon(x, polygons_df))
+        _, clust_polygons = merge_adjacent_polygons(clust_polygons, inflation_meter=1000, aggfunc='first')
 
-    # TODO: transform to gpd earlier
-    geo_df_clust_polygons = gpd.GeoDataFrame(clust_polygons)
-    geo_df_clust_polygons.geometry = geo_df_clust_polygons.geometry.apply(lambda x: shapely.wkt.loads(x))
-    geo_df_clust_polygons['is_in_river'] = geo_df_clust_polygons['geometry'].apply(
-        lambda x: x.within(main_land))
-    geo_df_clust_polygons['centroid'] = geo_df_clust_polygons['geometry'].centroid
 
-    geo_df_clust_polygons = rank_candidates(geo_df_clust_polygons)
+    geo_df_clust_polygons = rank_candidates(clust_polygons)
 
     # save model and files
     pkl_model_fname = f'hdbscan_{hdbscan_min_cluster_zise}mcs_{hdbscan_min_samples}ms_{ACTIVITY}'
