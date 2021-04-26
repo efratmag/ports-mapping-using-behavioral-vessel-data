@@ -1,17 +1,12 @@
 import math
 import pandas as pd
-import json
-from shapely.geometry import shape, Point, MultiLineString, Polygon, MultiPolygon
+from shapely.geometry import shape, MultiLineString, Polygon, MultiPolygon, MultiPoint
 from scipy.spatial import Delaunay
 import numpy as np
 import geopandas as gpd
-import shapely
 from shapely.ops import nearest_points
 from shapely import ops
-from geopy.distance import distance, great_circle
 from sklearn.metrics.pairwise import haversine_distances
-from numba import jit, prange
-from scipy.sparse import dok_matrix
 import logging
 from tqdm import tqdm
 logging.basicConfig(level=logging.INFO)
@@ -48,6 +43,14 @@ def haversine(lonlat1, lonlat2):
     c = 2 * math.asin(math.sqrt(a))
 
     return c * R
+
+
+def create_polygon(points, polygon_type, alpha=None):
+    if polygon_type == 'alpha_shape':
+        polygon = alpha_shape(points, alpha)[0]
+    elif polygon_type == 'convex_hull':
+        polygon = MultiPoint(points).convex_hull
+    return polygon
 
 
 def is_in_polygon_features(df):
