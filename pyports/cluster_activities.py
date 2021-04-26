@@ -104,7 +104,8 @@ def polygenize_clusters_with_features(df_for_clustering,
 def main(import_path, export_path, activity='anchoring', blip='first',
          hdbscan_min_cluster_zise=30, hdbscan_min_samples=5,
          hdbscan_distance_metric='euclidean', alpha=4,
-         sub_area_polygon_fname=None, merge_near_polygons=False):
+         sub_area_polygon_fname=None, merge_near_polygons=False,
+         debug=True):
 
     """
     :param import_path: path to all used files
@@ -117,9 +118,10 @@ def main(import_path, export_path, activity='anchoring', blip='first',
     :param alpha: parameter for 'alpha_shape'- degree of polygon segregation
     :param sub_area_polygon_fname: optional- add filname for sub area of interest
     :param merge_near_polygons: merge adjacent clusters
+    param debug: take only subset of data for testing code
     """
 
-    df_for_clustering_fname = f'df_for_clustering_{activity}.csv'
+    df_for_clustering_fname = f'features/df_for_clustering_{activity}.csv'
 
     # import df and clean it
     logging.info('Loading data...')
@@ -131,10 +133,11 @@ def main(import_path, export_path, activity='anchoring', blip='first',
         logging.info('Calculating points within sub area...')
         sub_area_polygon = gpd.read_file(os.path.join(import_path, sub_area_polygon_fname)).loc[0, 'geometry']
         df = df[df.apply(lambda x: Point(x[f'{blip}Blip_lng'], x[f'{blip}Blip_lat']).within(sub_area_polygon), axis=1)]
-
-    ports_df = gpd.read_file('maps/ports.json') # WW ports
-    polygons_df = gpd.read_file('maps/polygons.geojson')  # WW polygons
-    shoreline_df = gpd.read_file('maps/shoreline_layer.geojson')  # shoreline layer
+    if debug:
+        df = df[:1000]
+    ports_df = gpd.read_file(os.path.join(import_path, 'maps/ports.json')) # WW ports
+    polygons_df = gpd.read_file(os.path.join(import_path, 'maps/polygons.geojson')) # WW polygons
+    shoreline_df = gpd.read_file(os.path.join(import_path, 'maps/shoreline_layer.geojson'))  # shoreline layer
 
     main_land = merge_polygons(shoreline_df[:4])  # create multipolygon of the big continents
 
