@@ -5,6 +5,7 @@ import fire
 import geopandas as gpd
 from pyports.geo_utils import *
 from tqdm import tqdm
+from sklearn import preprocessing
 
 
 # TODO: generlize paths
@@ -13,6 +14,23 @@ FILE_NAME = f'df_for_clustering_{ACTIVITY}.csv'  # df with lat lng of all anchor
 PATH = '/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/features/'  # features folder
 SHORELINE_FNAME = 'shoreline_layer.geojson'
 path_to_shoreline_file = os.path.join('/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/maps/', SHORELINE_FNAME)
+
+aggfunc = {'num_points': 'sum',
+           'area_sqkm': 'sum',
+           'density': 'mean',
+           'mean_duration': 'mean',
+           'median_duration': 'mean',
+           'distance_from_nearest_port': 'min',
+           'n_unique_vesselID': 'mean',
+           'percent_unique_vesselID': 'mean',
+           'vesselIDs': 'first',
+           'intersection': 'min',
+           'distance_from_shore_euclidean': 'min',
+           'nearest_shore_lat': 'mean',
+           'nearest_shore_lng': 'mean',
+           'nearest_point_lat': 'mean',
+           'nearest_point_lng': 'mean',
+           'mean_prob': 'mean'}
 
 
 def polygenize_clusters_with_features(df_for_clustering,
@@ -66,6 +84,21 @@ def polygenize_clusters_with_features(df_for_clustering,
     return clust_polygons
 
 
+def rank_candidates(geo_df_clust_polygons):
+
+    geo_df_clust_polygons['rank'] = geo_df_clust_polygons['density'] * \
+                                    geo_df_clust_polygons['n_unique_vesselID'] * \
+                                    np.exp(geo_df_clust_polygons['dist_to_ww_poly'])
+
+    x = geo_df_clust_polygons['rank'].values.astype(float).reshape(-1, 1)
+    min_max_scaler = preprocessing.MinMaxScaler()
+    geo_df_clust_polygons['rank_scaled'] = min_max_scaler.fit_transform(x)
+
+    geo_df_clust_polygons = geo_df_clust_polygons.sort_values('rank_scaled', ascending=False)
+
+    return geo_df_clust_polygons
+
+
 def main(path, activity='anchoring', blip='first',
          hdbscan_min_cluster_zise=30, hdbscan_min_samples=5,
          distance_metric='euclidean', alpha=4,
@@ -110,8 +143,12 @@ def main(path, activity='anchoring', blip='first',
     df['cluster_probability'] = clusterer.probabilities_
 
     clust_polygons = polygenize_clusters_with_features(df, ports_df, alpha, blip)
+
     clust_polygons = polygon_intersection(clust_polygons, polygons_df)
     clust_polygons = calc_nearest_shore(clust_polygons, shoreline_df, method='haversine')
+
+    _, clust_polygons = merge_adjacent_polygons(clust_polygons, inflation_meter=1000, aggfunc=aggfunc)
+
     if ACTIVITY == 'mooring':
         clust_polygons['dist_to_ww_poly'] = clust_polygons.geometry.apply(
             lambda x: calc_polygon_distance_from_nearest_ww_polygon(x, polygons_df))
@@ -122,6 +159,8 @@ def main(path, activity='anchoring', blip='first',
     geo_df_clust_polygons['is_in_river'] = geo_df_clust_polygons['geometry'].apply(
         lambda x: x.within(main_land))
     geo_df_clust_polygons['centroid'] = geo_df_clust_polygons['geometry'].centroid
+
+    geo_df_clust_polygons = rank_candidates(geo_df_clust_polygons)
 
     # save model and files
     pkl_model_fname = f'hdbscan_{hdbscan_min_cluster_zise}mcs_{hdbscan_min_samples}ms_{ACTIVITY}'
