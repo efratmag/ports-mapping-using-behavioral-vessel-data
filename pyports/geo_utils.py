@@ -30,32 +30,9 @@ METERS_IN_DEG = 2 * math.pi * 6371000.0 / 360
 UNIT_RESOLVER = {'sqmi': 1609.34, 'sqkm': 1000.0}
 
 
-def calc_dest_point(lat, lng, brng, d=15):
-    """
-    Calculate destination lat,lng for a given location, direction and distance
-    :param lat: latitude
-    :param lng: longitude
-    :param brng: degrees converted to radians
-    :param d: distance in Km
-    :return:
-    """
-
-    lat = math.radians(lat)
-    lng = math.radians(lng)
-
-    dest_lat = math.asin(math.sin(lat) * math.cos(d / R) +
-                     math.cos(lat) * math.sin(d / R) * math.cos(brng))
-
-    dest_lng = lng + math.atan2(math.sin(brng) * math.sin(d / R) * math.cos(lat),
-                             math.cos(d / R) - math.sin(lat) * math.sin(dest_lat))
-
-    dest_lat = math.degrees(dest_lat)
-    dest_lng = math.degrees(dest_lng)
-
-    return dest_lat, dest_lng
-
-
 def haversine(lonlat1, lonlat2):
+
+    # todo - considirate DistanceMetric.get_metric('haversine')
     """
     Calculate the great circle distance between two points
     on the earth (specified in decimal degrees)
@@ -71,43 +48,6 @@ def haversine(lonlat1, lonlat2):
     c = 2 * math.asin(math.sqrt(a))
 
     return c * R
-
-
-def get_bounding_box(lat, lng, d=15):
-
-    """
-    Calculate the bounding box for given a point and distance
-    :param lat: latitude
-    :param lng: longitude
-    :param d: distance in Km
-    :return:
-    """
-
-    lat_n_e, lng_n_e = calc_dest_point(lat, lng, BRNG_N_E, d=d)
-    lat_s_w, lng_s_w = calc_dest_point(lat, lng, BRNG_S_W, d=d)
-
-    return lng_s_w, lat_s_w, lng_n_e, lat_n_e
-
-
-def isin_box(lat, lng, bounds):
-
-    """
-    Check if a point located within a given bounding box
-    :param lat: latitude
-    :param lng: longitude
-    :param bounds: bounding box coordinates
-    :return:
-    """
-
-    x1, x2, x3, x4 = bounds
-
-    within = False
-
-    if x2 < lat < x4:
-        if x1 < lng < x3:
-            within = True
-
-    return within
 
 
 def is_in_polygon_features(df):
@@ -222,19 +162,6 @@ def polygon_intersection(clust_polygon, ww_polygons):
     return intersection_value
 
 
-def flip(x, y):
-    """Flips the x and y coordinate values"""
-    return y, x
-
-
-def get_ports_centroid_array(ports_df):
-    """ Returns array of ports centroids"""
-    ports_centroids = np.array(
-        [ports_df.center_coordinates.map(lambda x: x[0]),
-         ports_df.center_coordinates.map(lambda x: x[1])]).transpose()
-    return ports_centroids
-
-
 def calc_polygon_distance_from_nearest_port(polygon, ports_df):
     """takes a polygon and ports df,
      calculate haversine distances from ports to polygon,
@@ -245,44 +172,6 @@ def calc_polygon_distance_from_nearest_port(polygon, ports_df):
     min_dist = np.min(dists)
     name_of_nearest_port = ports_df.loc[dists.index(min_dist), 'name']
     return min_dist, name_of_nearest_port
-
-
-def geodesic_distance(x, y):
-    """ distance metric using geopy geodesic metric. points need to be ordered (lat,lng)"""
-    geo_dist = distance((x[0], x[1]), (y[0], y[1]))
-    return geo_dist.kilometers
-
-
-def great_circle_distance(x,y):
-    """ distance metric using geopy great circle metric.
-    it is much faster than geodesic but a bit less accurate.
-    points need to be ordered (lat,lng)"""
-    circle_dist = great_circle((x[0], x[1]), (y[0], y[1]))
-    return circle_dist.kilometers
-
-
-@jit(parallel=True)
-def haversine_distances_parallel(d):
-    """Numba version of haversine distance."""
-
-    dist_mat = np.zeros((d.shape[0], d.shape[0]))
-
-    # We parallelize outer loop to keep threads busy
-    for i in prange(d.shape[0]):
-        for j in range(i+1, d.shape[0]):
-            sin_0 = np.sin(0.5 * (d[i, 0] - d[j, 0]))
-            sin_1 = np.sin(0.5 * (d[i, 1] - d[j, 1]))
-            cos_0 = np.cos(d[i, 0]) * np.cos(d[j, 0])
-            dist_mat[i, j] = 2 * np.arcsin(np.sqrt(sin_0 * sin_0 + cos_0 * sin_1 * sin_1))
-            dist_mat[j, i] = dist_mat[i, j]
-    return dist_mat
-
-
-def polygons_to_multi_lines(polygons_df):
-
-    polygons_multi_line = ops.linemerge(polygons_df['geometry'].boundary.values)
-
-    return polygons_multi_line
 
 
 def merge_polygons(geo_df):
@@ -342,28 +231,6 @@ def calc_polygon_distance_from_nearest_ww_polygon(polygon, polygons_df):
     polygon_centroid = (polygon.centroid.x, polygon.centroid.y)
     dists = [haversine(ww_poly_centroid, polygon_centroid) for ww_poly_centroid in ww_polygons_centroids]
     return np.min(dists)
-
-
-@jit(parallel=True)
-def haversine_distances_parallel_sparse(d, threshold=7):
-    """Numba version of haversine distance.
-        Generates sparse matrix of pairwise distances by only adding points which are less than x (threshold) km afar"""
-
-    dist_mat = dok_matrix((d.shape[0], d.shape[0]))
-
-    for i in prange(d.shape[0]):
-        for j in range(i+1, d.shape[0]):
-            sin_0 = np.sin(0.5 * (d[i, 0] - d[j, 0]))
-            sin_1 = np.sin(0.5 * (d[i, 1] - d[j, 1]))
-            cos_0 = np.cos(d[i, 0]) * np.cos(d[j, 0])
-            hav_dist = 2 * np.arcsin(np.sqrt(sin_0 * sin_0 + cos_0 * sin_1 * sin_1))
-            # only add distance if below the threshold
-            if hav_dist * R < threshold:  # R is the radius of earth in kilometers
-                dist_mat[i, j] = hav_dist
-
-    dist_mat = dist_mat.tocoo()
-
-    return dist_mat
 
 
 def get_multipolygon_exterior(multipolygon):
@@ -438,6 +305,8 @@ def inflate_polygon(polygon, meters, resolution=4):
 
 def merge_adjacent_polygons(geo_df, inflation_meter=1000, aggfunc='mean'):
 
+    logging.info('merge_adjacent_polygons - START')
+
     inflated_df = geo_df.apply(lambda x: inflate_polygon(x['geometry'], inflation_meter), axis=1)
 
     inflated_df = gpd.GeoDataFrame(inflated_df, columns=['geometry'])
@@ -452,6 +321,8 @@ def merge_adjacent_polygons(geo_df, inflation_meter=1000, aggfunc='mean'):
 
     merged_df = merged_df.dissolve(by='index_right', aggfunc=aggfunc)
 
+    logging.info('merge_adjacent_polygons - END')
+
     return merged_inflated, merged_df
 
 
@@ -465,4 +336,3 @@ def calc_entropy(feature):
 def create_google_maps_link_to_centroid(centroid):
     centroid_lat, centroid_lng = centroid.y, centroid.x
     return f'https://maps.google.com/?ll={centroid_lat},{centroid_lng}'
-

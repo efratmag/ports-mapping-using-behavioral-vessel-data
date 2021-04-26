@@ -4,8 +4,11 @@ script that takes only subset of data-
 2. only anchoring
 """
 
+
+
 import pandas as pd
 import os
+import numpy as np
 
 FILE_NAME = 'all_activities.csv.gz'  # df of all activities
 PATH = '/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/features' # features folder
@@ -28,6 +31,8 @@ cols = ['_id', 'vesselId', 'startDate', 'endDate', 'duration', 'firstBlip_lng',
        'firstBlip_in_polygon', 'lastBlip_in_polygon', 'polygonId', 'polygonType']
 
 df_for_clustering = df_sub.loc[:, cols]
+
+# TODO move to clean data and extract features
 
 # change class categories
 conditions = [

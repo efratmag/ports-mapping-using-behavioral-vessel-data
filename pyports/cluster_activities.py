@@ -2,40 +2,21 @@ import os
 import hdbscan
 import pickle
 import fire
-import geopandas as gpd
 from pyports.geo_utils import *
 from tqdm import tqdm
-from sklearn import preprocessing
-
+from pyports.rank_ports_candidates import main as rank_candidates
 
 # TODO: generlize paths
-ACTIVITY = 'anchoring'
-FILE_NAME = f'df_for_clustering_{ACTIVITY}.csv'  # df with lat lng of all anchoring activities
-SHORELINE_FNAME = 'shoreline_layer.geojson'
-path_to_shoreline_file = os.path.join('/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/maps/', SHORELINE_FNAME)
-
-aggfunc = {'num_points': 'sum',
-           'area_sqkm': 'sum',
-           'density': 'mean',
-           'mean_duration': 'mean',
-           'median_duration': 'mean',
-           'distance_from_nearest_port': 'min',
-           'n_unique_vesselID': 'mean',
-           'percent_unique_vesselID': 'mean',
-           'vesselIDs': 'first',
-           'intersection': 'min',
-           'distance_from_shore_euclidean': 'min',
-           'nearest_shore_lat': 'mean',
-           'nearest_shore_lng': 'mean',
-           'nearest_point_lat': 'mean',
-           'nearest_point_lng': 'mean',
-           'mean_prob': 'mean'}
+# ACTIVITY = 'anchoring'
+# FILE_NAME = f'df_for_clustering_{ACTIVITY}.csv'  # df with lat lng of all anchoring activities
+# SHORELINE_FNAME = 'shoreline_layer.geojson'
+# path_to_shoreline_file = os.path.join('/Users/EF/PycharmProjects/ports-mapping-using-behavioral-vessel-data/maps/', SHORELINE_FNAME)
 
 
 def polygenize_clusters_with_features(df_for_clustering,
                                       ports_df, main_land,
-                                      polygons_df,
-                                      alpha=4, blip):
+                                      polygons_df, activity,
+                                      blip, alpha=4):
 
     df_for_clustering = df_for_clustering[df_for_clustering.cluster_label != -1]  # remove clustering outlier points
 
@@ -70,8 +51,9 @@ def polygenize_clusters_with_features(df_for_clustering,
         record['centroid_lng'] = polygon.centroid.x
         record['pct_intersection'] = polygon_intersection(polygon, polygons_df)
         record['dist_to_ww_poly'] = calc_polygon_distance_from_nearest_ww_polygon(polygon, polygons_df)
+        record['link_to_google_maps'] = create_google_maps_link_to_centroid(polygon.centroid)
 
-        if ACTIVITY == 'anchoring':
+        if activity == 'anchoring':
 
             record['most_freq_destination'] = cluster_df['nextPort_name'].mode()[0]
             record['destination_variance'] = calc_entropy(cluster_df['nextPort_name'])
@@ -83,42 +65,43 @@ def polygenize_clusters_with_features(df_for_clustering,
     return clust_polygons
 
 
-def rank_candidates(geo_df_clust_polygons):
+#TODO call clean_data_and_extract_features at start
 
-    geo_df_clust_polygons['rank'] = geo_df_clust_polygons['density'] * \
-                                    geo_df_clust_polygons['n_unique_vesselID'] * \
-                                    np.exp(geo_df_clust_polygons['dist_to_ww_poly'])
-
-    x = geo_df_clust_polygons['rank'].values.astype(float).reshape(-1, 1)
-    min_max_scaler = preprocessing.MinMaxScaler()
-    geo_df_clust_polygons['rank_scaled'] = min_max_scaler.fit_transform(x)
-
-    geo_df_clust_polygons = geo_df_clust_polygons.sort_values('rank_scaled', ascending=False)
-
-    return geo_df_clust_polygons
-
-
-def main(path, activity='anchoring', blip='first',
+def main(import_path, export_path, activity='anchoring', blip='first',
          hdbscan_min_cluster_zise=30, hdbscan_min_samples=5,
          distance_metric='euclidean', alpha=4,
          sub_area_polygon_fname=None, merge_near_polygons=False):
 
+    """
+
+    :param import_path: path to all relevant files
+    :param export_path: path to
+    :param activity:
+    :param blip:
+    :param hdbscan_min_cluster_zise:
+    :param hdbscan_min_samples:
+    :param distance_metric:
+    :param alpha:
+    :param sub_area_polygon_fname:
+    :param merge_near_polygons:
+    :return:
+    """
+
     df_for_clustering_fname = f'df_for_clustering_{activity}.csv'
 
     # import df and clean it
-    # TODO: take raw data and add features- seperate lat lng, vessel type new class, within polygon etc.
     logging.info('Loading data...')
-    df = pd.read_csv(os.path.join(path, df_for_clustering_fname), low_memory=False)
+    df = pd.read_csv(os.path.join(import_path, df_for_clustering_fname), low_memory=False)
     df = df.drop_duplicates(subset=[f'{blip}Blip_lat', f'{blip}Blip_lng'])  # drop duplicates
-    df.nextPort_name.fillna('UNKNOWN', inplace=True)  # fill empty next port names
+    df.nextPort_name.fillna('UNKNOWN', inplace=True)  # fill empty next port names #TODO move to clean_data_and_extract_features
     if sub_area_polygon_fname:  # take only area of the data, e.g. 'maps/mediterranean.geojson'
         logging.info('Calculating points within sub area...')
-        sub_area_polygon = gpd.read_file(os.path.join(path, sub_area_polygon_fname)).loc[0, 'geometry']
+        sub_area_polygon = gpd.read_file(os.path.join(import_path, sub_area_polygon_fname)).loc[0, 'geometry']
         df = df[df.apply(lambda x: Point(x[f'{blip}Blip_lng'], x[f'{blip}Blip_lat']).within(sub_area_polygon), axis=1)]
 
     ports_df = gpd.read_file('maps/ports.json')
     polygons_df = gpd.read_file('maps/polygons.geojson')  # WW polygons
-    shoreline_df = gpd.read_file(path_to_shoreline_file)
+    shoreline_df = gpd.read_file('maps/shoreline_layer.geojson')
 
     main_land = merge_polygons(shoreline_df[:4])  # the big continents
 
@@ -142,7 +125,7 @@ def main(path, activity='anchoring', blip='first',
     df['cluster_label'] = clusterer.labels_
     df['cluster_probability'] = clusterer.probabilities_
 
-    clust_polygons = polygenize_clusters_with_features(df, ports_df, polygons_df, main_land, alpha, blip)
+    clust_polygons = polygenize_clusters_with_features(df, ports_df, polygons_df, main_land, activity, blip, alpha)
 
     clust_polygons = calc_nearest_shore(clust_polygons, shoreline_df, method='haversine')
 
@@ -150,16 +133,22 @@ def main(path, activity='anchoring', blip='first',
 
         _, clust_polygons = merge_adjacent_polygons(clust_polygons, inflation_meter=1000, aggfunc='first')
 
+    if activity == 'mooring':
+        clust_polygons = rank_candidates(clust_polygons)
 
-    geo_df_clust_polygons = rank_candidates(clust_polygons)
+    logging.info('finished extracting features')
 
     # save model and files
-    pkl_model_fname = f'hdbscan_{hdbscan_min_cluster_zise}mcs_{hdbscan_min_samples}ms_{ACTIVITY}'
-    clust_polygons_fname = pkl_model_fname + '_polygons.json'
+    logging.info('saving data and model...')
+    pkl_model_fname = f'hdbscan_{hdbscan_min_cluster_zise}mcs_{hdbscan_min_samples}ms_{activity}.pkl'
+    pkl_model_fname = os.path.join(export_path, pkl_model_fname)
 
-    with open('models/' + pkl_model_fname + '.pkl', 'wb') as file:
+    clust_polygons_fname = pkl_model_fname + '_polygons.geojson'
+    clust_polygons_fname = os.path.join(export_path, clust_polygons_fname)
+
+    with open(pkl_model_fname, 'wb') as file:
         pickle.dump(clusterer, file)
-    geo_df_clust_polygons.to_file('maps/' + clust_polygons_fname, driver="GeoJSON")
+    clust_polygons.to_file(clust_polygons_fname, driver="GeoJSON")
 
 
 if __name__ == "__main__":
