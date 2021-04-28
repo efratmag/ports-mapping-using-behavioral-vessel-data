@@ -64,12 +64,15 @@ def haversine(lonlat1, lonlat2):
     return c * R
 
 
-def polygon_from_points(points, polygon_type, alpha=None):
+def polygon_from_points(points, polygenize_method, alpha=None):
     """ takes plat/lng array of points and create polygon from them """
 
-    if polygon_type == 'alpha_shape':
+    assert polygenize_method in ['alpha_shape', 'convex_hull'], \
+        f'expect polygon_type="alpha_shape" or "convex_hull", got {polygenize_method}'
+
+    if polygenize_method == 'alpha_shape':
         poly = alpha_shape(points, alpha)[0]
-    elif polygon_type == 'convex_hull':
+    elif polygenize_method == 'convex_hull':
         poly = MultiPoint(points).convex_hull
     return poly
 
