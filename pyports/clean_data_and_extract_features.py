@@ -38,6 +38,7 @@ def load_and_process_polygons_file(polygons_file_path, area_geohash=None):
     polygons_df['centroid'] = polygons_df['geometry'].centroid  # get polygons centroid
     polygons_df['geohash'] = polygons_df['centroid'].apply(lambda x: Geohash.encode(x.y, x.x, 2))  # resolve geohash per polygon centroid
     polygons_df['polygon_area_type'] = [d.get('areaType') for d in polygons_df.properties]  # add areaType column from nested dict
+    polygons_df['name'] = [d.get('title') for d in polygons_df.properties]  # add name column from nested dict
 
     if area_geohash:
         polygons_df = polygons_df[polygons_df['geohash'] == area_geohash].drop('centroid', axis=1)  # drop polygons out of geohash
@@ -212,6 +213,11 @@ def main(import_path, export_path, debug=True):
 
             logging.info(f'merging vessels data...')
             df = df.merge(vessels_df, left_on='vesselId', right_index=True)
+
+            logging.info(f'merging nextPort data...')
+            df.merge(polygons_df.set_index('polygon_id'), left_on='nextPort', right_index=True, how='left').rename(
+                columns={'name': 'nextPortName'})
+
             df['activity'] = file_name.replace('.csv.gz', '')
 
             results_list.append(df)
