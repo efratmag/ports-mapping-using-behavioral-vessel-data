@@ -1,0 +1,4 @@
+outs:
+- md5: 3260beb4cfb3da07168538930df1b784
+  size: 4175219
+  path: hdbscan_20mcs_10ms_anchoring_containers_only_alpha_shape_polygons_with_haversine_distance.geojson
