@@ -253,8 +253,8 @@ def calc_nearest_shore(df, shoreline_df, method='euclidean'):
 def calc_polygon_distance_from_nearest_ww_polygon(polygon, polygons_df):
     """takes a polygon and an array of ports centroids
     and returns the distance in km from the nearest port from the array"""
-    ww_polygons_centroids = np.array([polygons_df.geometry.centroid.x, polygons_df.geometry.centroid.y]).T
-    polygon_centroid = (polygon.centroid.x, polygon.centroid.y)
+    ww_polygons_centroids = np.array(polygons_df.geometry.apply(lambda poly: (poly.centroid.y, poly.centroid.x)))
+    polygon_centroid = (polygon.centroid.y, polygon.centroid.x)
     dists = [haversine(ww_poly_centroid, polygon_centroid) for ww_poly_centroid in ww_polygons_centroids]
     return np.min(dists)
 
