@@ -70,6 +70,7 @@ def polygon_from_points(points, polygenize_method, alpha=None):
     assert polygenize_method in ['alpha_shape', 'convex_hull'], \
         f'expect polygon_type="alpha_shape" or "convex_hull", got {polygenize_method}'
 
+    poly = None
     if polygenize_method == 'alpha_shape':
         poly = alpha_shape(points, alpha)[0]
     elif polygenize_method == 'convex_hull':
@@ -210,41 +211,45 @@ def merge_polygons(geo_df):
     return merged_polygons
 
 
-def calc_nearest_shore(df, shoreline_df, method='euclidean'):
+def calc_nearest_shore(poly, shoreline_polygon, method='euclidean'):
 
-    #TODO cahnge to handle signle polygon
+    if poly.intersects(shoreline_polygon):
+        distance = 0
+        nearest_shore = {f'distance_from_shore_{method}': distance}
 
-    logging.info('loading and processing shoreline file - START')
+    else:
+        nearest_polygons_points = nearest_points(shoreline_polygon, poly)
+        point1, point2 = (nearest_polygons_points[0].y, nearest_polygons_points[0].x), \
+                         (nearest_polygons_points[1].y, nearest_polygons_points[1].x)
 
-    shoreline_multi_polygon = merge_polygons(shoreline_df)
-    logging.info('loading and processing shoreline file - END')
+        if method == 'euclidean':
+            distance = np.linalg.norm(np.array(point1) - np.array(point2))
+        elif method == 'haversine':
+            distance = haversine(point1, point2)
+        else:
+            raise ValueError('method must be "euclidean" or "haversine"')
+
+        nearest_shore = {f'distance_from_shore_{method}': distance,
+                         'nearest_shore_lat': point1[0],
+                         'nearest_shore_lng': point1[1],
+                         'nearest_point_lat': point2[0],
+                         'nearest_point_lng': point2[1]}
+
+    return nearest_shore
+
+
+def calc_nearest_shore_bulk(df, shoreline_polygon, method='euclidean'):
 
     results_list = []
 
     for row in tqdm(df['geometry'].iteritems()):
         index, poly = row
-        #poly = shapely.wkt.loads(poly)
+
         if index % 100 == 0 and index != 0:
             logging.info(f'{index} instances was calculated')
-        if poly.intersects(shoreline_multi_polygon):
-            distance = 0
-            results_list.append({f'distance_from_shore_{method}': distance})
-        else:
-            nearest_polygons_points = nearest_points(shoreline_multi_polygon, poly)
-            point1, point2 = (nearest_polygons_points[0].y, nearest_polygons_points[0].x), \
-                             (nearest_polygons_points[1].y, nearest_polygons_points[1].x)
-            if method == 'euclidean':
-                distance = np.linalg.norm(np.array(point1) - np.array(point2))
-            elif method == 'haversine':
-                distance = haversine(point1, point2)
-            else:
-                raise ValueError('method must be "euclidean" or "haversine"')
 
-            results_list.append({f'distance_from_shore_{method}': distance,
-                                 'nearest_shore_lat': point1[0],
-                                 'nearest_shore_lng': point1[1],
-                                 'nearest_point_lat': point2[0],
-                                 'nearest_point_lng': point2[1]})
+        nearest_shore = calc_nearest_shore(poly, shoreline_polygon, method)
+        results_list.append(nearest_shore)
 
     results_df = pd.DataFrame(results_list)
     shared_columns = set(results_df.columns).intersection(set(df.columns))
