@@ -9,19 +9,24 @@ from tqdm import tqdm
 
 # TODO: generalize paths
 
+
 def polygenize_clusters_with_features(df_for_clustering,
                                       ports_df, polygons_df,
+                                      shoreline_polygon,
                                       main_land, activity,
                                       blip, alpha=4,
+                                      shoreline_distance_method='euclidean',
                                       polygon_type='alpha_shape'):
     """
     :param df_for_clustering: activities dataframe with clustering results
     :param ports_df: dataframe of WW ports
     :param polygons_df: dataframe of WW polygons
+    :param shoreline_polygon: merged shoreline layer to one multipolygon
     :param main_land: multi-polygon of the main continents
     :param activity: qs in main- activity type (i.e mooring/anchoring etc.)
     :param blip: as in main- 'first' or 'last'
     :param alpha: as in main- parameter for alpha shape- degree of polygon segregation
+    :param shoreline_distance_method - "euclidean" / "haversine"
     :param polygon_type: 'alpha_shape' or 'convexhull'
     :return: geopandas dataframe of all polygenized clusters with their features
     """
@@ -88,6 +93,9 @@ def polygenize_clusters_with_features(df_for_clustering,
         # link to google maps for the polygon centroid
         record['link_to_google_maps'] = create_google_maps_link_to_centroid(polygon.centroid)
 
+        distance_from_shore = calc_nearest_shore(polygon, shoreline_polygon, shoreline_distance_method)
+        record.update(distance_from_shore)
+
         cluster_polygons.append(record)
 
     cluster_polygons = gpd.GeoDataFrame(cluster_polygons)
@@ -101,6 +109,7 @@ def main(import_path, export_path, activity='anchoring', blip='first',
          hdbscan_min_cluster_zise=30, hdbscan_min_samples=5,
          hdbscan_distance_metric='euclidean', alpha=4,
          sub_area_polygon_fname=None, merge_near_polygons=False,
+         shoreline_distance_method='euclidean',
          debug=True):
 
     """
@@ -114,7 +123,8 @@ def main(import_path, export_path, activity='anchoring', blip='first',
     :param alpha: parameter for 'alpha_shape'- degree of polygon segregation
     :param sub_area_polygon_fname: optional- add filname for sub area of interest
     :param merge_near_polygons: merge adjacent clusters
-    param debug: take only subset of data for testing code
+    :param shoreline_distance_method: "euclidean" / "haversine"
+    :param debug: take only subset of data for testing code
     """
 
     df_for_clustering_fname = f'features/df_for_clustering_{activity}.csv'
@@ -124,7 +134,6 @@ def main(import_path, export_path, activity='anchoring', blip='first',
     #TODO: link to database, read raw files and run 'clean_data_and_extract_features' on it
     df = pd.read_csv(os.path.join(import_path, df_for_clustering_fname), low_memory=False)
     df = df.drop_duplicates(subset=[f'{blip}Blip_lat', f'{blip}Blip_lng'])  # drop duplicates
-    df.nextPort_name.fillna('UNKNOWN', inplace=True)  # fill empty next port names #TODO move to clean_data_and_extract_features
     if sub_area_polygon_fname:  # take only area of the data, e.g. 'maps/mediterranean.geojson'
         logging.info('Calculating points within sub area...')
         sub_area_polygon = gpd.read_file(os.path.join(import_path, sub_area_polygon_fname)).loc[0, 'geometry']
@@ -135,7 +144,10 @@ def main(import_path, export_path, activity='anchoring', blip='first',
     polygons_df = gpd.read_file(os.path.join(import_path, 'maps/polygons.geojson')) # WW polygons
     shoreline_df = gpd.read_file(os.path.join(import_path, 'maps/shoreline_layer.geojson'))  # shoreline layer
 
+    logging.info('loading and processing shoreline file - START')
     main_land = merge_polygons(shoreline_df[:4])  # create multipolygon of the big continents
+    shoreline_polygon = merge_polygons(shoreline_df) # merging shoreline_df to one multipolygon
+    logging.info('loading and processing shoreline file - END')
 
     logging.info('Finished loading data!')
 
@@ -158,9 +170,8 @@ def main(import_path, export_path, activity='anchoring', blip='first',
     df['cluster_probability'] = clusterer.probabilities_
 
     # polygenize clusters and extract features of interest
-    clust_polygons = polygenize_clusters_with_features(df, ports_df, polygons_df, main_land, activity, blip, alpha)
-    # TODO: change function to operate on polygon level and add to polygenize_clusters_with_features
-    clust_polygons = calc_nearest_shore(clust_polygons, shoreline_df, method='haversine')
+    clust_polygons = polygenize_clusters_with_features(df, ports_df, polygons_df, shoreline_polygon,
+                                                       main_land, activity, blip, alpha, shoreline_distance_method)
 
     # merging adjacent polygons
     if merge_near_polygons:
