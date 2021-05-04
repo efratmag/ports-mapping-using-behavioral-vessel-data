@@ -192,12 +192,23 @@ def calc_polygon_distance_from_nearest_port(polygon, ports_df):
     """takes a polygon and ports df,
      calculate haversine distances from ports to polygon,
      returns: the name of nearest port and distance from it"""
-    ports_centroids = ports_df.loc[:, ['lng', 'lat']].to_numpy()
-    polygon_centroid = (polygon.centroid.x, polygon.centroid.y)
+    ports_centroids = ports_df.loc[:, ['lat', 'lng']].to_numpy()
+    polygon_centroid = (polygon.centroid.y, polygon.centroid.x)
     dists = [haversine(port_centroid, polygon_centroid) for port_centroid in ports_centroids]
     min_dist = np.min(dists)
     name_of_nearest_port = ports_df.loc[dists.index(min_dist), 'name']
     return min_dist, name_of_nearest_port
+
+
+def filter_points_far_from_port(ports_df, port_name, points, idxs):
+    """ calculate distance between port and the activity points related to it
+    filters out points that are more than 200km away.
+    used for destination based port waiting area clustering"""
+    port_centroid = [ports_df[ports_df.name == port_name].lat.item(), ports_df[ports_df.name == port_name].lng.item()]
+    dists = np.asarray([haversine(port_centroid, loc) for loc in points])
+    good_idxs = idxs[np.where(dists < 200)]
+    points = points[np.where(dists < 200)]
+    return points, good_idxs
 
 
 def merge_polygons(geo_df):
