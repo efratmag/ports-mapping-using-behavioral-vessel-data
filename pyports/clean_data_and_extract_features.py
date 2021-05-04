@@ -216,7 +216,8 @@ def main(import_path, export_path, debug=True):
 
             logging.info(f'merging nextPort data...')
             df.merge(polygons_df.set_index('polygon_id'), left_on='nextPort', right_index=True, how='left').rename(
-                columns={'name': 'nextPortName'})
+                columns={'name': 'nextPort_name'})
+            df.nextPort_name.fillna('UNKNOWN', inplace=True)
 
             df['activity'] = file_name.replace('.csv.gz', '')
 
