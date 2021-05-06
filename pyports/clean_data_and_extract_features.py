@@ -215,7 +215,7 @@ def main(import_path, export_path, debug=True):
             df = df.merge(vessels_df, left_on='vesselId', right_index=True)
 
             logging.info(f'merging nextPort data...')
-            df.merge(polygons_df.set_index('polygon_id'), left_on='nextPort', right_index=True, how='left').rename(
+            df = df.merge(polygons_df.set_index('polygon_id'), left_on='nextPort', right_index=True, how='left').rename(
                 columns={'name': 'nextPort_name'})
             df.nextPort_name.fillna('UNKNOWN', inplace=True)
 
