@@ -12,8 +12,6 @@ from sklearn.neighbors import BallTree
 
 import logging
 
-# TODO: add (1)new class name (2)next port name
-
 ACTIVITIES_FILES = ['mooring.csv.gz', 'drifting.csv.gz', 'port_calls.csv.gz', 'anchoring.csv.gz']
 
 VESSELS_RELEVANT_COLS = ['_id', 'class_calc', 'subclass_documented', 'built_year',
@@ -150,10 +148,19 @@ def load_and_process_vessels_file(import_path):
     vessels_size['size_category'] = pd.qcut(vessels_size['size'], 3, labels=["small", "medium", "big"])
     vessels_df = vessels_df.merge(vessels_size['size_category'], left_index=True, right_index=True, how='left')
 
-    vessels_df['class_calc_updated'] = vessels_df['class_calc'].fillna('Other').replace({'MilitaryOrLaw': 'Other',
-                                                                                         'Pleasure': 'Other',
-                                                                                         'Unknown': 'Other',
-                                                                                         'HighSpeedCraft': 'Other'})
+    # vessels_df['class_calc_updated'] = vessels_df['class_calc'].fillna('Other').replace({'MilitaryOrLaw': 'Other',
+    #                                                                                      'Pleasure': 'Other',
+    #                                                                                      'Unknown': 'Other',
+    #                                                                                      'HighSpeedCraft': 'Other'})
+
+    conditions = [(vessels_df["class_calc"] == 'Cargo') & (vessels_df["subclass_documented"] == 'Container Vessel'),
+                  (vessels_df["class_calc"] == 'Cargo') & (vessels_df["subclass_documented"] != 'Container Vessel'),
+                  (vessels_df["class_calc"] == 'Tanker')]
+
+    choices = ["cargo_container", "cargo_other", "tanker"]
+    vessels_df["class_new"] = np.select(conditions, choices)
+    vessels_df["class_new"] = vessels_df["class_new"].replace({'0': 'other'})
+
     vessels_df = vessels_df.add_prefix('vessel_')
 
     return vessels_df
