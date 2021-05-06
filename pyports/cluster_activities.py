@@ -7,8 +7,6 @@ from pyports.geo_utils import *
 from pyports.rank_ports_candidates import main as rank_candidates
 from tqdm import tqdm
 
-# TODO: generalize paths
-
 
 def polygenize_clusters_with_features(df_for_clustering,
                                       ports_df, polygons_df,
