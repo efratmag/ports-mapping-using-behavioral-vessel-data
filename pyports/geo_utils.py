@@ -24,26 +24,6 @@ METERS_IN_DEG = 2 * math.pi * 6371000.0 / 360
 UNIT_RESOLVER = {'sqmi': 1609.34, 'sqkm': 1000.0}
 
 
-def extract_coordinates(df, col='firstBlip'):
-
-    """
-    a function that extracts lat and lng from a Series with geometry dict
-    :param df: Dataframe with coordinates dict columns
-    :param col: name of column for coordinates extraction
-    :return: df with lat lng coordinates
-    """
-
-    if col+'_lng' not in df.columns and col+'_lat' not in df.columns:
-
-        logging.info(f'extracting coordinates for {col}...')
-        coordinates_df = df[col].dropna().apply(eval).apply(lambda x: x['geometry']['coordinates']).apply(pd.Series)
-        coordinates_df = coordinates_df.rename(columns={0: col+'_lng', 1: col+'_lat'})
-
-        df = df.merge(coordinates_df, left_index=True, right_index=True, how='left')
-
-    return df
-
-
 def haversine(lonlat1, lonlat2):
 
     # todo - optimize code and consider sklearn haversine
@@ -76,24 +56,6 @@ def polygon_from_points(points, polygenize_method, alpha=None):
     elif polygenize_method == 'convex_hull':
         poly = MultiPoint(points).convex_hull
     return poly
-
-
-def is_in_polygon_features(df):
-    """ extract for each activity lat and lng if it happened within WW polygon"""
-
-    df['firstBlip_in_polygon'] = df['firstBlip_polygon_id'].notna()
-
-    conditions = [
-        (df['firstBlip_in_polygon'] == True) & (df['lastBlip_polygon_id'].isna() == True),
-        (df['firstBlip_in_polygon'] == False) & (df['lastBlip_polygon_id'].isna() == True),
-        (df['lastBlip_polygon_id'].isna() == False)
-    ]
-
-    choices = ['not_ended', 'False', 'True']
-    df['lastBlip_in_polygon'] = np.select(conditions, choices)
-
-    return df
-
 
 def alpha_shape(points, alpha, only_outer=True):
     # if len(points) < 4:
