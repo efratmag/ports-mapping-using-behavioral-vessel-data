@@ -1,7 +1,8 @@
 from shapely.geometry import shape, Point
 
 from shapely import ops
-from pyports.geo_utils import haversine, extract_coordinates
+from pyports.geo_utils import haversine
+from pyports.get_data import extract_coordinates
 import Geohash
 import os
 import fire
