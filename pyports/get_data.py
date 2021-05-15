@@ -87,15 +87,6 @@ def calc_distance_from_shore(df, shore_lines, col="firstBlip"):
     return df
 
 
-def load_and_process_shorelines_df(shorelines_file_path):
-
-    logging.info('loading file shorelines...')
-    shore_lines_df = gpd.read_file(shorelines_file_path)
-    shore_lines = ops.linemerge(shore_lines_df['geometry'].values)
-
-    return shore_lines
-
-
 def is_in_polygon_features(df):
 
     df["firstBlip_in_polygon"] = df["firstBlip_polygon_id"].notna()
