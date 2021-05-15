@@ -1,5 +1,4 @@
 from shapely.geometry import shape, Point
-
 from shapely import ops
 from pyports.geo_utils import haversine
 import os
@@ -90,7 +89,7 @@ def calc_distance_from_shore(df, shore_lines, col="firstBlip"):
 
 def load_and_process_shorelines_df(shorelines_file_path):
 
-    logging.info(f'loading file shorelines...')
+    logging.info('loading file shorelines...')
     shore_lines_df = gpd.read_file(shorelines_file_path)
     shore_lines = ops.linemerge(shore_lines_df['geometry'].values)
 
@@ -132,6 +131,8 @@ def get_ports_wa_polygons(import_path=None, db=None):
     :return:
     """
 
+    logging.info('get_ports_wa_polygons - START')
+
     # TODO: fill in mongo query here
     if not import_path:
         col = db["polygons"]
@@ -161,10 +162,14 @@ def get_ports_wa_polygons(import_path=None, db=None):
 
     polygons_df = gpd.GeoDataFrame(polygons_df)  # convert to GeoPandas
 
+    logging.info('get_ports_wa_polygons - END')
+
     return polygons_df
 
 
 def get_vessels_info(import_path, db, vessels_ids):
+
+    logging.info('get_vessels_info - START')
 
     projection = {'vesselId': 1, "class_calc": 1, "subclass_documented": 1, "built_year": 1,
                   "name": 1, "deadweight": 1, "draught": 1, "size": 1, "age": 1}
@@ -172,16 +177,17 @@ def get_vessels_info(import_path, db, vessels_ids):
     # TODO: fill in mongo query here
     if not import_path:
         col = db["vessels"]
-        col = col.find({'_id': {'$in': vessels_ids}}, projection)
+        col = col.find({'_id': {'$in': [ObjectId(vessel) for vessel in vessels_ids]}}, projection)
 
         vessels_df = pd.DataFrame(list(col)).drop(['_id'], axis=1)
 
     else:
 
-        vessels_file_path = os.path.join(import_path, 'vessels.csv.gz')
+        vessels_file_path = os.path.join(import_path, 'vessels.json')
         with open(vessels_file_path, 'r') as vessels_file:
             vessels_file = json.load(vessels_file)
             vessels_df = pd.DataFrame.from_dict(vessels_file, orient='index')
+            vessels_df = vessels_df[projection].drop('vesselId', axis=1)
 
     conditions = [(vessels_df["class_calc"] == 'Cargo') & (vessels_df["subclass_documented"] == 'Container Vessel'),
                   (vessels_df["class_calc"] == 'Cargo') & (vessels_df["subclass_documented"] != 'Container Vessel'),
@@ -193,11 +199,17 @@ def get_vessels_info(import_path, db, vessels_ids):
 
     vessels_df = vessels_df.add_prefix('vessel_')
     vessels_df = vessels_df.reset_index().rename(columns={'index': 'vesselId'})
+    if vessels_ids:
+        vessels_df = vessels_df[vessels_df['vesselId'].isin(vessels_ids)]
+
+    logging.info('get_vessels_info - END')
 
     return vessels_df
 
 
 def get_ports_info(import_path, db):
+
+    logging.info('get_ports_info - START')
 
     # TODO: fill in mongo query here
     if not import_path:
@@ -212,17 +224,21 @@ def get_ports_info(import_path, db):
 
             ports_df = json.load(portsfile)
         ports_df = pd.DataFrame.from_dict(ports_df, orient='index')
-        ports_df = ports_df[['country', 'country', 'name', 'center_coordinates']]
+        ports_df = ports_df[['country', 'name', 'center_coordinates']]
 
         ports_df['lat'] = ports_df.center_coordinates.map(lambda x: x[1])
         ports_df['lng'] = ports_df.center_coordinates.map(lambda x: x[0])
-        ports_df = extract_coordinates(ports_df, 'firstBlip')
-        ports_df = extract_coordinates(ports_df, 'lastBlip')
+
+        ports_df = ports_df.reset_index().rename(columns={'index': 'PortId'}).drop('center_coordinates', axis=1)
+
+        logging.info('get_ports_info - END')
 
     return ports_df
 
 
 def get_activity_df(import_path, db, vessels_ids, activity='mooring', nrows=None):
+
+    logging.info(F'get_ports_info ({activity}) - START')
 
     # TODO: fill in mongo query here
     if not import_path:
@@ -233,38 +249,46 @@ def get_activity_df(import_path, db, vessels_ids, activity='mooring', nrows=None
 
         col = db[activity]
         col = col.find(query, projection).limit(nrows) if nrows else col.find(query, projection)
-        activity_df = pd.DataFrame(list(col)).drop(['_id'], axis=1)
+        activity_df = pd.DataFrame(list(col))
         activity_df = activity_df.rename(columns={'firstBlip.geometry.coordinates.0': 'firstBlip_lng',
                                                   'firstBlip.geometry.coordinates.1': 'firstBlip_lat',
                                                   'lastBlip.geometry.coordinates.0': 'lastBlip_lng',
                                                   'lastBlip.geometry.coordinates.1': 'lastBlip_lat'})
 
     else:
-        activity_file_path = os.path.join(import_path, f'activity.csv')
-        activity_df = pd.read_csv(activity_file_path, nrows=nrows)
+        cols = ['_id', 'firstBlip', 'lastBlip', 'vesselId', 'startDate', 'endDate', 'duration', 'nextPort']
+        activity_file_path = os.path.join(import_path, f'{activity}.csv.gz')
+        activity_df = pd.read_csv(activity_file_path, nrows=nrows, usecols=cols)
+        activity_df = extract_coordinates(activity_df, 'firstBlip')
+        activity_df = extract_coordinates(activity_df, 'lastBlip')
+        activity_df = activity_df.drop(['firstBlip', 'lastBlip'], axis=1)
+
+    logging.info(F'get_ports_info ({activity}) - END')
 
     return activity_df
 
 
-def main(export_path, vessels_ids=None, import_path=None, debug=True):
+def main(export_path, vessels_ids=None, import_path=None, use_db=False, debug=True):
 
     """
     This code will get all relevant data and prepare it for clustering
     :param export_path: path in which the output will be exported
     :param import_path: path to directory with all relevant files
     :param vessels_ids: comma-separated list of vessels ids for mongo query
+    :param use_db: if True, will use mongo db to query data
     :param debug: if True, only a first 10K rows of each file will be processed
     :return:
     """
 
-    assert vessels_ids or import_path, "vessels_ids or import_path wasn't passed"
+    assert use_db or import_path, "use_db or import_path wasn't passed"
 
     if vessels_ids and isinstance(vessels_ids, str):
         vessels_ids = vessels_ids.split(',')
 
-    # initiate MongoClient for mongo queries
-    myclient = pymongo.MongoClient("<your connection string here>")
-    db = myclient["<DB name here>"]
+    db = None
+    if use_db:
+        myclient = pymongo.MongoClient("<your connection string here>")  # initiate MongoClient for mongo queries
+        db = myclient["<DB name here>"]
 
     nrows = 10000 if debug else None  # 10K rows per file if debug mode == True
 
@@ -285,10 +309,11 @@ def main(export_path, vessels_ids=None, import_path=None, debug=True):
         activity_df = is_in_polygon_features(activity_df)
 
         logging.info(f'merging vessels data...')
-        activity_df = activity_df.merge(vessels_df, left_on='vesselId', right_index=True)
+        activity_df = activity_df.merge(vessels_df, on='vesselId', how='left')
 
         logging.info(f'merging nextPort data...')
-        activity_df = activity_df.merge(polygons_df.set_index('polygon_id'), left_on='nextPort', right_index=True, how='left').rename(
+        activity_df = activity_df.merge(polygons_df.set_index('polygon_id').drop('geometry', axis=1),
+                                        left_on='nextPort', right_index=True, how='left').rename(
             columns={'name': 'nextPort_name'})
         activity_df.nextPort_name.fillna('UNKNOWN', inplace=True)
 
