@@ -37,12 +37,13 @@ def filter_candidates(geo_df_clust_polygons, min_nunique_vessels=20, min_distanc
     return geo_df_clust_polygons
 
 
-def main(geo_df_clust_polygons, min_nunique_vessels=20, min_distance_from_ww_polygons_km=30,
+def main(geo_df_clust_polygons, debug=False, min_nunique_vessels=20, min_distance_from_ww_polygons_km=30,
          max_distance_from_shore_km=5, remove_intersection_polygon=True):
 
-    geo_df_clust_polygons = filter_candidates(geo_df_clust_polygons, min_nunique_vessels,
-                                              min_distance_from_ww_polygons_km, max_distance_from_shore_km,
-                                              remove_intersection_polygon)
+    if not debug:
+        geo_df_clust_polygons = filter_candidates(geo_df_clust_polygons, min_nunique_vessels,
+                                                  min_distance_from_ww_polygons_km, max_distance_from_shore_km,
+                                                  remove_intersection_polygon)
 
     geo_df_clust_polygons['rank'] = geo_df_clust_polygons.apply(lambda row: calc_rank(row), axis=1)
 
