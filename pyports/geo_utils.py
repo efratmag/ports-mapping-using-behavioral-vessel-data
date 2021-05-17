@@ -57,6 +57,7 @@ def polygon_from_points(points, polygenize_method, alpha=None):
         poly = MultiPoint(points).convex_hull
     return poly
 
+
 def alpha_shape(points, alpha, only_outer=True):
     # if len(points) < 4:
     #     # When you have a triangle, there is no sense
