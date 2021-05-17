@@ -54,7 +54,7 @@ def find_intersection_with_polygons(df, polygons_df, col_prefix, force_enrichmen
         merged_polygons = df.groupby('_id', as_index=False).agg({'polygon_id': ', '.join,
                                                                  'polygon_area_type': ', '.join}).replace({'nan': None})
 
-        df = df.drop_duplicates('_id').drop(['polygon_id', 'polygon_area_type'], axis=1)
+        df = df.drop_duplicates('_id').drop(['polygon_id', 'polygon_area_type', 'geometry'], axis=1)
         df = df.merge(merged_polygons, on='_id')
         df = df.rename(columns={'polygon_id': col_prefix + '_polygon_id',
                                 'polygon_area_type': col_prefix + '_polygon_area_type'})
