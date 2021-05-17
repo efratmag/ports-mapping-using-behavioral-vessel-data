@@ -229,7 +229,7 @@ def get_ports_info(import_path, db):
 
 def get_activity_df(import_path, db, vessels_ids, activity='mooring', nrows=None):
 
-    logging.info(F'get_ports_info ({activity}) - START')
+    logging.info(F'get_activity_df ({activity}) - START')
 
     # TODO: fill in mongo query here
     if not import_path:
@@ -254,7 +254,7 @@ def get_activity_df(import_path, db, vessels_ids, activity='mooring', nrows=None
         activity_df = extract_coordinates(activity_df, 'lastBlip')
         activity_df = activity_df.drop(['firstBlip', 'lastBlip'], axis=1)
 
-    logging.info(F'get_ports_info ({activity}) - END')
+    logging.info(F'get_activity_df ({activity}) - END')
 
     return activity_df
 
