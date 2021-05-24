@@ -17,3 +17,6 @@
 /hdbscan_30mcs_5ms_mooring_alpha_shape_polygons_with_euclidean_distance.geojson
 /locations.csv
 /locations_utm.csv
+/hdbscan_20mcs_10ms_anchoring_containers_only_alpha_shape_polygons_with_haversine_distance.geojson
+/hdbscan_20mcs_20ms_anchoring_containers_only_destination_based_alpha_shape_polygons.geojson
+/ports_candidates.csv
