@@ -1,0 +1,4 @@
+outs:
+- md5: 1822d82ab2bf497b0fdc8a2111816e3f
+  size: 1865897
+  path: World_UTM_Grid.geojson
