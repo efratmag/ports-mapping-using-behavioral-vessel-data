@@ -101,7 +101,7 @@ def main(import_path, export_path, activity='anchoring', blip='first',
          hdbscan_min_cluster_zise=20, hdbscan_min_samples=10,
          hdbscan_distance_metric='euclidean',
          sub_area_polygon_fname=None, merge_near_polygons=False,
-         only_containers=True,
+         destination_based_clustering=True,
          debug=False, save_files_and_model=False):
 
     """
@@ -115,7 +115,7 @@ def main(import_path, export_path, activity='anchoring', blip='first',
     :param alpha: parameter for 'alpha_shape'- degree of polygon segregation
     :param sub_area_polygon_fname: optional- add file name for sub area of interest
     :param merge_near_polygons: merge adjacent clusters
-    :param only_containers: boolean- take only container vessels
+    :param destination_based_clustering: boolean- take only container vessels for pwa destination based clustering
     :param debug: take first 1000 samples for debugging
     :param save_files_and_model: boolean- whether to save results and model to output_path
     param debug: take only subset of data for testing code
@@ -134,7 +134,7 @@ def main(import_path, export_path, activity='anchoring', blip='first',
         logging.info('Calculating points within sub area...')
         sub_area_polygon = gpd.read_file(os.path.join(import_path, sub_area_polygon_fname)).loc[0, 'geometry']
         df = df[df.apply(lambda x: Point(x[f'{blip}Blip_lng'], x[f'{blip}Blip_lat']).within(sub_area_polygon), axis=1)]
-    if only_containers:
+    if destination_based_clustering:
         df = df[df.class_new == 'cargo_container']  # take only container vessels
         df = df[df.nextPort_name != 'UNKNOWN']  # remove missing values
         df = df.groupby("nextPort_name").filter(lambda x: len(x) > 20)  # take only ports with at least 20 records
@@ -155,7 +155,7 @@ def main(import_path, export_path, activity='anchoring', blip='first',
 
     logging.info('Starting clustering...')
 
-    if only_containers:
+    if destination_based_clustering:
         # cluster per port and create dataframe for feature generation
         num_clusters = 0
         for i, port in enumerate(df.nextPort_name.unique()):
@@ -196,7 +196,8 @@ def main(import_path, export_path, activity='anchoring', blip='first',
     # polygenize clusters and extract features of interest
     clust_polygons = polygenize_clusters_with_features(df, ports_df, polygons_df, main_land, activity, blip, only_containers=True)
     # TODO: change function to operate on polygon level and add to polygenize_clusters_with_features
-    clust_polygons = calc_nearest_shore(clust_polygons, shoreline_df, method='haversine')
+    if not destination_based_clustering:
+        clust_polygons = calc_nearest_shore(clust_polygons, shoreline_df, method='haversine')
 
     # merging adjacent polygons
     if merge_near_polygons:
@@ -220,7 +221,7 @@ def main(import_path, export_path, activity='anchoring', blip='first',
         with open(pkl_model_fname, 'wb') as file:
             pickle.dump(clusterer, file)
         clust_polygons.to_file(clust_polygons_fname, driver="GeoJSON")
-        # TODO: add csv version for analysts with polygon in geojson form
+        clust_polygons.to_csv(os.path.join(export_path, pkl_model_fname + '_polygons.csv')
 
 
 if __name__ == "__main__":
