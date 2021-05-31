@@ -1,21 +1,17 @@
 import math
 import pandas as pd
-import json
-from shapely.geometry import shape, Point, MultiLineString, Polygon, MultiPolygon
+from shapely.geometry import shape, MultiLineString, Polygon, MultiPolygon, MultiPoint
 from scipy.spatial import Delaunay
 import numpy as np
 import geopandas as gpd
-import shapely
 from shapely.ops import nearest_points
 from shapely import ops
-from geopy.distance import distance, great_circle
-from scipy.spatial.distance import pdist
-from numba import jit, prange
-from scipy.sparse import dok_matrix, coo_matrix
+from sklearn.metrics.pairwise import haversine_distances
 import logging
 from tqdm import tqdm
-logging.basicConfig(level=logging.INFO)
 
+
+# TODO: verify all lat lngs are in right order
 
 R = 6378.1  # Radius of the Earth
 SQUARE_FOOT_IN_SQUARE_METRE = 10.7639
@@ -28,32 +24,29 @@ METERS_IN_DEG = 2 * math.pi * 6371000.0 / 360
 UNIT_RESOLVER = {'sqmi': 1609.34, 'sqkm': 1000.0}
 
 
-def calc_dest_point(lat, lng, brng, d=15):
+def extract_coordinates(df, col='firstBlip'):
+
     """
-    Calculate destination lat,lng for a given location, direction and distance
-    :param lat: latitude
-    :param lng: longitude
-    :param brng: degrees converted to radians
-    :param d: distance in Km
-    :return:
+    a function that extracts lat and lng from a Series with geometry dict
+    :param df: Dataframe with coordinates dict columns
+    :param col: name of column for coordinates extraction
+    :return: df with lat lng coordinates
     """
 
-    lat = math.radians(lat)
-    lng = math.radians(lng)
+    if col+'_lng' not in df.columns and col+'_lat' not in df.columns:
 
-    dest_lat = math.asin(math.sin(lat) * math.cos(d / R) +
-                     math.cos(lat) * math.sin(d / R) * math.cos(brng))
+        logging.info(f'extracting coordinates for {col}...')
+        coordinates_df = df[col].dropna().apply(eval).apply(lambda x: x['geometry']['coordinates']).apply(pd.Series)
+        coordinates_df = coordinates_df.rename(columns={0: col+'_lng', 1: col+'_lat'})
 
-    dest_lng = lng + math.atan2(math.sin(brng) * math.sin(d / R) * math.cos(lat),
-                             math.cos(d / R) - math.sin(lat) * math.sin(dest_lat))
+        df = df.merge(coordinates_df, left_index=True, right_index=True, how='left')
 
-    dest_lat = math.degrees(dest_lat)
-    dest_lng = math.degrees(dest_lng)
-
-    return dest_lat, dest_lng
+    return df
 
 
 def haversine(lonlat1, lonlat2):
+
+    # todo - optimize code and consider sklearn haversine
     """
     Calculate the great circle distance between two points
     on the earth (specified in decimal degrees)
@@ -67,70 +60,23 @@ def haversine(lonlat1, lonlat2):
     dlat = lat2 - lat1
     a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
     c = 2 * math.asin(math.sqrt(a))
-    
+
     return c * R
 
 
-def get_bounding_box(lat, lng, d=15):
+def polygon_from_points(points, polygon_type, alpha=None):
+    """ takes plat/lng array of points and create polygon from them """
 
-    """
-    Calculate the bounding box for given a point and distance
-    :param lat: latitude
-    :param lng: longitude
-    :param d: distance in Km
-    :return:
-    """
-
-    lat_n_e, lng_n_e = calc_dest_point(lat, lng, BRNG_N_E, d=d)
-    lat_s_w, lng_s_w = calc_dest_point(lat, lng, BRNG_S_W, d=d)
-
-    return lng_s_w, lat_s_w, lng_n_e, lat_n_e
-
-
-def isin_box(lat, lng, bounds):
-
-    """
-    Check if a point located within a given bounding box
-    :param lat: latitude
-    :param lng: longitude
-    :param bounds: bounding box coordinates
-    :return:
-    """
-
-    x1, x2, x3, x4 = bounds
-
-    within = False
-
-    if x2 < lat < x4:
-        if x1 < lng < x3:
-            within = True
-
-    return within
-
-
-def is_in_polygon(lng, lat, polygon_fname):
-
-    """
-    checks if a point is inside a polygon
-    :param lng: long of point
-    :param lat: latitude of point
-    :param polygon_fname: the polygon file name for which to test if the point is inside of. can take manually defined in geojson.io
-    :return: boolean
-    """
-
-    with open(polygon_fname) as f:
-        polygon = json.load(f)
-
-    point = Point(lng, lat)
-
-    for feature in polygon['features']:
-        poly = shape(feature['geometry'])
-        verdict = poly.contains(point)
-
-    return verdict
+    if polygon_type == 'alpha_shape':
+        poly = alpha_shape(points, alpha)[0]
+    elif polygon_type == 'convex_hull':
+        poly = MultiPoint(points).convex_hull
+    return poly
 
 
 def is_in_polygon_features(df):
+    """ extract for each activity lat and lng if it happened within WW polygon"""
+
     df['firstBlip_in_polygon'] = df['firstBlip_polygon_id'].notna()
 
     conditions = [
@@ -208,7 +154,7 @@ def alpha_shape(points, alpha, only_outer=True):
 
 def calc_polygon_area_sq_unit(polygon, unit='sqkm'):
 
-    polygon = polygon_to_meters(polygon)
+    avg_lat, polygon = polygon_to_meters(polygon)
     polygon_area = np.sqrt(polygon.area) / UNIT_RESOLVER[unit]
     polygon_area *= polygon_area
 
@@ -221,82 +167,49 @@ def calc_cluster_density(points):
     :return: cluster density
     """
 
-    distances = pdist(points)
-    total_distance = distances.sum()
-    n_pairwise_comparisons = len(distances)
+    distances = haversine_distances(np.radians(points))
+    mean_squared_distane = np.square(distances).mean()
+    mean_squared_distane_km = mean_squared_distane * R
 
-    return n_pairwise_comparisons / total_distance
+    return 1 / mean_squared_distane_km
 
 
-def polygon_intersection(clust_polygons, ww_polygons):
+def polygon_intersection(clust_polygon, ww_polygons):
     """
     :param clust_polygons: df of clustering polygons
     :param ww_polygons: df of windward polygons
     :return: geopandas dataframe with extra feature of intersection of polygons with windward's polygons
     """
-    for i, clust_poly in enumerate(clust_polygons.geometry):
-        for j, ww_poly in enumerate(ww_polygons.geometry):
-            if clust_poly.intersects(ww_poly):
-                clust_polygons.loc[i,'intersection'] = clust_poly.intersection(ww_poly).area/clust_poly.area * 100
-    return clust_polygons
+    intersection_value = 0
+    temp_df = ww_polygons[ww_polygons.intersects(clust_polygon)]
+    if not temp_df.empty:
+        intersection_value = clust_polygon.intersection(temp_df.iloc[0]['geometry']).area / clust_polygon.area * 100
+
+    return intersection_value
 
 
-def flip(x, y):
-    """Flips the x and y coordinate values"""
-    return y, x
+def calc_polygon_distance_from_nearest_port(polygon, ports_df):
+    """takes a polygon and ports df,
+     calculate haversine distances from ports to polygon,
+     returns: the name of nearest port and distance from it"""
+    ports_centroids = ports_df.loc[:, ['lat', 'lng']].to_numpy()
+    polygon_centroid = (polygon.centroid.y, polygon.centroid.x)
+    dists = [haversine(port_centroid, polygon_centroid) for port_centroid in ports_centroids]
+    min_dist = np.min(dists)
+    name_of_nearest_port = ports_df.loc[dists.index(min_dist), 'name']
+    return min_dist, name_of_nearest_port
 
 
-def get_ports_centroid_array(ports_df):
-    """ Returns array of ports centroids"""
-    ports_centroids = np.array(
-        [ports_df.center_coordinates.map(lambda x: x[0]),
-         ports_df.center_coordinates.map(lambda x: x[1])]).transpose()
-    return ports_centroids
-
-
-def calc_polygon_distance_from_nearest_port(polygon, ports_centroids):
-    """takes a polygon and an array of ports centroids and returns the distance from the nearest port from the array"""
-    polygon_centroid = (polygon.centroid.x, polygon.centroid.x)
-    dists = np.sum((ports_centroids - polygon_centroid)**2, axis=1)
-    return np.min(dists)
-
-
-def geodesic_distance(x, y):
-    """ distance metric using geopy geodesic metric. points need to be ordered (lat,lng)"""
-    geo_dist = distance((x[0], x[1]), (y[0], y[1]))
-    return geo_dist.kilometers
-
-
-def great_circle_distance(x,y):
-    """ distance metric using geopy great circle metric.
-    it is much faster than geodesic but a bit less accurate.
-    points need to be ordered (lat,lng)"""
-    circle_dist = great_circle((x[0], x[1]), (y[0], y[1]))
-    return circle_dist.kilometers
-
-
-@jit(parallel=True)
-def haversine_distances_parallel(d):
-    """Numba version of haversine distance."""
-
-    dist_mat = np.zeros((d.shape[0], d.shape[0]))
-
-    # We parallelize outer loop to keep threads busy
-    for i in prange(d.shape[0]):
-        for j in range(i+1, d.shape[0]):
-            sin_0 = np.sin(0.5 * (d[i, 0] - d[j, 0]))
-            sin_1 = np.sin(0.5 * (d[i, 1] - d[j, 1]))
-            cos_0 = np.cos(d[i, 0]) * np.cos(d[j, 0])
-            dist_mat[i, j] = 2 * np.arcsin(np.sqrt(sin_0 * sin_0 + cos_0 * sin_1 * sin_1))
-            dist_mat[j, i] = dist_mat[i, j]
-    return dist_mat
-
-
-def polygons_to_multi_lines(polygons_df):
-
-    polygons_multi_line = ops.linemerge(polygons_df['geometry'].boundary.values)
-
-    return polygons_multi_line
+def filter_points_far_from_port(ports_df, port_name, points, idxs):
+    """ calculate distance between port and the activity points related to it
+    filters out points that are more than 200km away.
+    used for destination based port waiting area clustering"""
+    port_centroid = [ports_df[ports_df.name == port_name].geometry.y.item(),
+                     ports_df[ports_df.name == port_name].geometry.x.item()]
+    dists = np.asarray([haversine(port_centroid, loc) for loc in points])
+    good_idxs = idxs[np.where(dists < 200)]
+    points = points[np.where(dists < 200)]
+    return points, good_idxs
 
 
 def merge_polygons(geo_df):
@@ -306,10 +219,12 @@ def merge_polygons(geo_df):
     return merged_polygons
 
 
-def calc_nearest_shore(df, path_to_shoreline_file, method='euclidean'):
+def calc_nearest_shore(df, shoreline_df, method='euclidean'):
+
+    #TODO cahnge to handle signle polygon
 
     logging.info('loading and processing shoreline file - START')
-    shoreline_df = gpd.read_file(path_to_shoreline_file)
+
     shoreline_multi_polygon = merge_polygons(shoreline_df)
     logging.info('loading and processing shoreline file - END')
 
@@ -317,7 +232,7 @@ def calc_nearest_shore(df, path_to_shoreline_file, method='euclidean'):
 
     for row in tqdm(df['geometry'].iteritems()):
         index, poly = row
-
+        #poly = shapely.wkt.loads(poly)
         if index % 100 == 0 and index != 0:
             logging.info(f'{index} instances was calculated')
         if poly.intersects(shoreline_multi_polygon):
@@ -348,33 +263,12 @@ def calc_nearest_shore(df, path_to_shoreline_file, method='euclidean'):
 
 
 def calc_polygon_distance_from_nearest_ww_polygon(polygon, polygons_df):
-    """takes a polygon and an array of ports centroids and returns the distance from the nearest port from the array"""
-    ww_polygons_centroids = np.array([polygons_df.geometry.centroid.x, polygons_df.geometry.centroid.y]).T
-    polygon_centroid = (polygon.centroid.x, polygon.centroid.y)
-    dists = np.linalg.norm((ww_polygons_centroids - polygon_centroid), axis=1)
+    """takes a polygon and an array of ports centroids
+    and returns the distance in km from the nearest port from the array"""
+    ww_polygons_centroids = np.array(polygons_df.geometry.apply(lambda poly: (poly.centroid.y, poly.centroid.x)))
+    polygon_centroid = (polygon.centroid.y, polygon.centroid.x)
+    dists = [haversine(ww_poly_centroid, polygon_centroid) for ww_poly_centroid in ww_polygons_centroids]
     return np.min(dists)
-
-
-@jit(parallel=True)
-def haversine_distances_parallel_sparse(d, threshold=7):
-    """Numba version of haversine distance.
-        Generates sparse matrix of pairwise distances by only adding points which are less than x (threshold) km afar"""
-
-    dist_mat = dok_matrix((d.shape[0], d.shape[0]))
-
-    for i in prange(d.shape[0]):
-        for j in range(i+1, d.shape[0]):
-            sin_0 = np.sin(0.5 * (d[i, 0] - d[j, 0]))
-            sin_1 = np.sin(0.5 * (d[i, 1] - d[j, 1]))
-            cos_0 = np.cos(d[i, 0]) * np.cos(d[j, 0])
-            hav_dist = 2 * np.arcsin(np.sqrt(sin_0 * sin_0 + cos_0 * sin_1 * sin_1))
-            # only add distance if below the threshold
-            if hav_dist * R < threshold:  # R is the radius of earth in kilometers
-                dist_mat[i, j] = hav_dist
-
-    dist_mat = dist_mat.tocoo()
-
-    return dist_mat
 
 
 def get_multipolygon_exterior(multipolygon):
@@ -449,6 +343,8 @@ def inflate_polygon(polygon, meters, resolution=4):
 
 def merge_adjacent_polygons(geo_df, inflation_meter=1000, aggfunc='mean'):
 
+    logging.info('merge_adjacent_polygons - START')
+
     inflated_df = geo_df.apply(lambda x: inflate_polygon(x['geometry'], inflation_meter), axis=1)
 
     inflated_df = gpd.GeoDataFrame(inflated_df, columns=['geometry'])
@@ -463,8 +359,18 @@ def merge_adjacent_polygons(geo_df, inflation_meter=1000, aggfunc='mean'):
 
     merged_df = merged_df.dissolve(by='index_right', aggfunc=aggfunc)
 
+    logging.info('merge_adjacent_polygons - END')
+
     return merged_inflated, merged_df
 
 
+def calc_entropy(feature):
+    """ takes categorical feature values and returns the column's entropy
+    The maximum value of entropy is log𝑘, where 𝑘 is the number of categories you are using."""
+    vc = pd.Series(feature).value_counts(normalize=True, sort=False)
+    return -(vc * np.log(vc) / np.log(math.e)).sum()
 
 
+def create_google_maps_link_to_centroid(centroid):
+    centroid_lat, centroid_lng = centroid.y, centroid.x
+    return f'https://maps.google.com/?ll={centroid_lat},{centroid_lng}'
