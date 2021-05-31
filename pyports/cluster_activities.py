@@ -13,7 +13,8 @@ def polygenize_clusters_with_features(df_for_clustering,
                                       ports_df, polygons_df,
                                       main_land, activity,
                                       blip, alpha=4,
-                                      polygon_type='alpha_shape'):
+                                      polygon_type='alpha_shape',
+                                      only_containers=None):
     """
     :param df_for_clustering: activities dataframe with clustering results
     :param ports_df: dataframe of WW ports
@@ -58,8 +59,6 @@ def polygenize_clusters_with_features(df_for_clustering,
         # median duration from first blip to last blip
         record['median_duration'] = cluster_df['duration'].median()
         # distance in km from nearest WW port and its name
-        record['distance_from_nearest_port'], record['name_of_nearest_port'] =\
-            calc_polygon_distance_from_nearest_port(polygon, ports_df)
         # number of unique vessel IDs in cluster
         record['n_unique_vesselID'] = cluster_df['vesselId'].nunique()
         # percent of unique vesselIDs in cluster
@@ -87,7 +86,9 @@ def polygenize_clusters_with_features(df_for_clustering,
         record['dist_to_ww_poly'] = calc_polygon_distance_from_nearest_ww_polygon(polygon, polygons_df)
         # link to google maps for the polygon centroid
         record['link_to_google_maps'] = create_google_maps_link_to_centroid(polygon.centroid)
-
+        if not only_containers:
+            record['distance_from_nearest_port'], record['name_of_nearest_port'] = \
+                calc_polygon_distance_from_nearest_port(polygon, ports_df)
         cluster_polygons.append(record)
 
     cluster_polygons = gpd.GeoDataFrame(cluster_polygons)
@@ -141,7 +142,7 @@ def main(import_path, export_path, activity='anchoring', blip='first',
     if debug:
         df = df[:1000]
 
-    ports_df = gpd.read_file(os.path.join(import_path, 'maps/ports.json'))  # WW ports
+    ports_df = gpd.read_file(os.path.join(import_path, 'maps/ports.geojson'))  # WW ports
     ports_df.drop_duplicates(subset='name', inplace=True)
     polygons_df = gpd.read_file(os.path.join(import_path, 'maps/polygons.geojson'))  # WW polygons
     shoreline_df = gpd.read_file(os.path.join(import_path, 'maps/shoreline_layer.geojson'))  # shoreline layer
@@ -193,7 +194,7 @@ def main(import_path, export_path, activity='anchoring', blip='first',
     logging.info('Starting feature extraction for clusters...')
 
     # polygenize clusters and extract features of interest
-    clust_polygons = polygenize_clusters_with_features(df, ports_df, polygons_df, main_land, activity, blip)
+    clust_polygons = polygenize_clusters_with_features(df, ports_df, polygons_df, main_land, activity, blip, only_containers=True)
     # TODO: change function to operate on polygon level and add to polygenize_clusters_with_features
     clust_polygons = calc_nearest_shore(clust_polygons, shoreline_df, method='haversine')
 
