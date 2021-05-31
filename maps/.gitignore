@@ -8,6 +8,5 @@
 /all_mooring.json
 /all_anchoring.json
 /shoreline_layer.geojson
-/ports.json
 /comparing_polygons.html
-/final_ports_candidates.html
+/World_UTM_Grid.geojson
