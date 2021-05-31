@@ -39,10 +39,10 @@ def polygenize_clusters_with_features(df_for_clustering,
         # cluster label
         record['label'] = f'cluster {cluster}'
         # list of all points probabilities of belonging to the cluster
-        #record['probs_of_belonging_to_clust'] =\
-            #', '.join(cluster_df['cluster_probability'].astype(str).to_list())
+        record['probs_of_belonging_to_clust'] =\
+            ', '.join(cluster_df['cluster_probability'].astype(str).to_list())
         # mean probability of belonging to cluster
-        #record['mean_prob_of_belonging_to_cluster'] = cluster_df['cluster_probability'].mean()
+        record['mean_prob_of_belonging_to_cluster'] = cluster_df['cluster_probability'].mean()
         # polygenized cluster
         record['geometry'] = polygon
         # geojson format of the polygenized cluster
@@ -58,8 +58,8 @@ def polygenize_clusters_with_features(df_for_clustering,
         # median duration from first blip to last blip
         record['median_duration'] = cluster_df['duration'].median()
         # distance in km from nearest WW port and its name
-        #record['distance_from_nearest_port'], record['name_of_nearest_port'] =\
-            #calc_polygon_distance_from_nearest_port(polygon, ports_df)
+        record['distance_from_nearest_port'], record['name_of_nearest_port'] =\
+            calc_polygon_distance_from_nearest_port(polygon, ports_df)
         # number of unique vessel IDs in cluster
         record['n_unique_vesselID'] = cluster_df['vesselId'].nunique()
         # percent of unique vesselIDs in cluster
@@ -164,12 +164,11 @@ def main(import_path, export_path, activity='anchoring', blip='first',
             locs = locations[idxs]
             locs, idxs = filter_points_far_from_port(ports_df, port, locs, idxs)
             if locs.shape[0] > 20:  # if enough points left
-                #clusterer = hdbscan.HDBSCAN(min_cluster_size=hdbscan_min_cluster_zise,
-                                            #min_samples=hdbscan_min_samples,
-                                            #metric=hdbscan_distance_metric)
-                clusterer = DBSCAN(eps=0.3, min_samples=20).fit(locs)
-                #clusterer.fit(locs)
-                #df.loc[idxs, 'cluster_probability'] = clusterer.probabilities_
+                clusterer = hdbscan.HDBSCAN(min_cluster_size=hdbscan_min_cluster_zise,
+                                            min_samples=hdbscan_min_samples,
+                                            metric=hdbscan_distance_metric)
+                clusterer.fit(locs)
+                df.loc[idxs, 'cluster_probability'] = clusterer.probabilities_
 
                 if i == 0:
                     df.loc[idxs, 'cluster_label'] = clusterer.labels_
