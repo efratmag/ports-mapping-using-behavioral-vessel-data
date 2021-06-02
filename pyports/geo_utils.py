@@ -26,7 +26,6 @@ UNIT_RESOLVER = {'sqmi': 1609.34, 'sqkm': 1000.0}
 
 def haversine(lonlat1, lonlat2):
 
-    # todo - optimize code and consider sklearn haversine
     """
     Calculate the great circle distance between two points
     on the earth (specified in decimal degrees)
@@ -160,11 +159,23 @@ def calc_polygon_distance_from_nearest_port(polygon, ports_df):
      calculate haversine distances from ports to polygon,
      returns: the name of nearest port and distance from it"""
     ports_centroids = ports_df.loc[:, ['lng', 'lat']].to_numpy()
-    polygon_centroid = (polygon.centroid.x, polygon.centroid.y)
+    polygon_centroid = (polygon.centroid.y, polygon.centroid.x)
     dists = [haversine(port_centroid, polygon_centroid) for port_centroid in ports_centroids]
     min_dist = np.min(dists)
     name_of_nearest_port = ports_df.loc[dists.index(min_dist), 'name']
     return min_dist, name_of_nearest_port
+
+
+def filter_points_far_from_port(ports_df, port_name, points, idxs):
+    """ calculate distance between port and the activity points related to it
+    filters out points that are more than 200km away.
+    used for destination based port waiting area clustering"""
+    port_centroid = [ports_df[ports_df.name == port_name].geometry.y.item(),
+                     ports_df[ports_df.name == port_name].geometry.x.item()]
+    dists = np.asarray([haversine(port_centroid, loc) for loc in points])
+    good_idxs = idxs[np.where(dists < 200)]
+    points = points[np.where(dists < 200)]
+    return points, good_idxs
 
 
 def merge_polygons(geo_df):
@@ -224,8 +235,8 @@ def calc_nearest_shore_bulk(df, shoreline_polygon, method='euclidean'):
 def calc_polygon_distance_from_nearest_ww_polygon(polygon, polygons_df):
     """takes a polygon and an array of ports centroids
     and returns the distance in km from the nearest port from the array"""
-    ww_polygons_centroids = np.array([polygons_df.geometry.centroid.x, polygons_df.geometry.centroid.y]).T
-    polygon_centroid = (polygon.centroid.x, polygon.centroid.y)
+    ww_polygons_centroids = np.array([polygons_df.geometry.centroid.y, polygons_df.geometry.centroid.x]).T
+    polygon_centroid = (polygon.centroid.y, polygon.centroid.x)
     dists = [haversine(ww_poly_centroid, polygon_centroid) for ww_poly_centroid in ww_polygons_centroids]
     return np.min(dists)
 
