@@ -176,7 +176,7 @@ def main(import_path, export_path, activity='anchoring', blip='first',
     # import df and clean it
     logging.info('Loading data...')
 
-    nrows = 10000 if debug else None  # 10K rows per file if debug == True
+    nrows = 10000 if debug else None  # will load first 10K rows if debug == True
 
     df = pd.read_csv(os.path.join(import_path, df_for_clustering_fname), low_memory=False, nrows=nrows)
 
