@@ -9,7 +9,7 @@ from shapely import ops
 from sklearn.metrics.pairwise import haversine_distances
 import logging
 from tqdm import tqdm
-
+from kneed import KneeLocator
 
 # TODO: verify all lat lngs are in right order
 
@@ -344,3 +344,36 @@ def calc_entropy(feature):
 def create_google_maps_link_to_centroid(centroid):
     centroid_lat, centroid_lng = centroid.y, centroid.x
     return f'https://maps.google.com/?ll={centroid_lat},{centroid_lng}'
+
+
+def optimize_polygon_by_probs(points, probs, polygon_type, alpha=4, s=1):
+
+    all_prob = np.linspace(min(probs), 1, 20)
+
+    metrics = []
+
+    for prob in all_prob:
+        probs_mask = probs >= prob
+        relevant_points = points[probs_mask]
+        if len(relevant_points) > 0:
+
+            poly = polygon_from_points(relevant_points, polygon_type, alpha)
+
+            area_size = calc_polygon_area_sq_unit(poly)
+            metrics.append(area_size)
+
+    kneedle = KneeLocator(all_prob, metrics, S=s, curve="convex", direction="decreasing")
+
+    original_polygon = polygon_from_points(points, polygon_type, alpha)
+
+    if kneedle.knee:
+
+        final_points = points[probs >= kneedle.knee]
+        points_removed = len(points) - len(final_points)
+        poly = polygon_from_points(final_points, polygon_type, alpha)
+
+    else:
+        poly = original_polygon
+        points_removed = 0
+
+    return poly, original_polygon, kneedle.knee, points_removed, metrics
