@@ -2,52 +2,11 @@ import os
 import hdbscan
 import pickle
 import fire
-from shapely.geometry import Point
 from pyports.geo_utils import *
+from pyports.get_data_for_clustring import get_data_for_clustering
 from pyports.rank_ports_candidates import main as rank_candidates
 from tqdm import tqdm
-from kneed import KneeLocator
 import numpy as np
-import math
-
-
-def optimize_polygon_by_probs(points, probs, polygon_type, alpha=4, s=1):
-
-    # unique_probs = np.sort(np.unique(probs)) #todo finish this part
-    #
-    # sampling_interval = math.ceil((len(unique_probs))/20.0)
-    #
-    # all_prob = unique_probs[::sampling_interval] if len(unique_probs) > 20 else unique_probs
-
-    all_prob = np.linspace(min(probs), 1, 20)
-
-    metrics = []
-
-    for prob in all_prob:
-        probs_mask = probs >= prob
-        relevant_points = points[probs_mask]
-        if len(relevant_points) > 0:
-
-            poly = polygon_from_points(relevant_points, polygon_type, alpha)
-
-            area_size = calc_polygon_area_sq_unit(poly)
-            metrics.append(area_size)
-
-    kneedle = KneeLocator(all_prob, metrics, S=s, curve="convex", direction="decreasing")
-
-    original_polygon = polygon_from_points(points, polygon_type, alpha)
-
-    if kneedle.knee:
-
-        final_points = points[probs >= kneedle.knee]
-        points_removed = len(points) - len(final_points)
-        poly = polygon_from_points(final_points, polygon_type, alpha)
-
-    else:
-        poly = original_polygon
-        points_removed = 0
-
-    return poly, original_polygon, kneedle.knee, points_removed, metrics
 
 
 # TODO: generalize paths
@@ -171,37 +130,14 @@ def main(import_path, export_path, activity='anchoring', blip='first',
 
     """
 
-    df_for_clustering_fname = f'features/df_for_clustering_{activity}.csv'
-
-    # import df and clean it
-    logging.info('Loading data...')
-
-    nrows = 10000 if debug else None  # will load first 10K rows if debug == True
-
-    df = pd.read_csv(os.path.join(import_path, df_for_clustering_fname), low_memory=False, nrows=nrows)
-
-    if sub_area_polygon_fname:  # take only area of the data, e.g. 'maps/mediterranean.geojson'
-        logging.info('Calculating points within sub area...')
-        sub_area_polygon = gpd.read_file(os.path.join(import_path, sub_area_polygon_fname)).loc[0, 'geometry']
-        df = df[df.apply(lambda x: Point(x[f'{blip}Blip_lng'], x[f'{blip}Blip_lat']).within(sub_area_polygon), axis=1)]
+    df, ports_df, polygons_df, main_land, shoreline_polygon = get_data_for_clustering(import_path, activity, debug,
+                                                                                      sub_area_polygon_fname, blip)
 
     if destination_based_clustering:
         df = df[df.vessel_class_new == 'cargo_container']  # take only container vessels
         df = df[df.nextPort_name != 'UNKNOWN']  # remove missing values
         df = df.groupby("nextPort_name").filter(lambda x: len(x) > 20)  # take only ports with at least 20 records
         df.reset_index(drop=True, inplace=True)  # reset index
-
-    ports_df = gpd.read_file(os.path.join(import_path, 'maps/ports.geojson'))  # WW ports
-    ports_df.drop_duplicates(subset='name', inplace=True)
-    polygons_df = gpd.read_file(os.path.join(import_path, 'maps/polygons.geojson'))  # WW polygons
-
-    logging.info('loading and processing shoreline file - START')
-    shoreline_df = gpd.read_file(os.path.join(import_path, 'maps/shoreline_layer.geojson'))  # shoreline layer
-    main_land = merge_polygons(shoreline_df[:4])  # create multipolygon of the big continents
-    shoreline_polygon = merge_polygons(shoreline_df) # merging shoreline_df to one multipolygon
-    logging.info('loading and processing shoreline file - END')
-
-    logging.info('Finished loading data!')
 
     locations = df[[f'{blip}Blip_lat', f'{blip}Blip_lng']].to_numpy()  # points for clustering
 
