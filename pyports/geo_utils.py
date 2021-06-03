@@ -9,7 +9,7 @@ from shapely import ops
 from sklearn.metrics.pairwise import haversine_distances
 import logging
 from tqdm import tqdm
-
+from kneed import KneeLocator
 
 # TODO: verify all lat lngs are in right order
 
@@ -24,29 +24,8 @@ METERS_IN_DEG = 2 * math.pi * 6371000.0 / 360
 UNIT_RESOLVER = {'sqmi': 1609.34, 'sqkm': 1000.0}
 
 
-def extract_coordinates(df, col='firstBlip'):
-
-    """
-    a function that extracts lat and lng from a Series with geometry dict
-    :param df: Dataframe with coordinates dict columns
-    :param col: name of column for coordinates extraction
-    :return: df with lat lng coordinates
-    """
-
-    if col+'_lng' not in df.columns and col+'_lat' not in df.columns:
-
-        logging.info(f'extracting coordinates for {col}...')
-        coordinates_df = df[col].dropna().apply(eval).apply(lambda x: x['geometry']['coordinates']).apply(pd.Series)
-        coordinates_df = coordinates_df.rename(columns={0: col+'_lng', 1: col+'_lat'})
-
-        df = df.merge(coordinates_df, left_index=True, right_index=True, how='left')
-
-    return df
-
-
 def haversine(lonlat1, lonlat2):
 
-    # todo - optimize code and consider sklearn haversine
     """
     Calculate the great circle distance between two points
     on the earth (specified in decimal degrees)
@@ -64,31 +43,18 @@ def haversine(lonlat1, lonlat2):
     return c * R
 
 
-def polygon_from_points(points, polygon_type, alpha=None):
+def polygon_from_points(points, polygenize_method, alpha=None):
     """ takes plat/lng array of points and create polygon from them """
 
-    if polygon_type == 'alpha_shape':
+    assert polygenize_method in ['alpha_shape', 'convex_hull'], \
+        f'expect polygon_type="alpha_shape" or "convex_hull", got {polygenize_method}'
+
+    poly = None
+    if polygenize_method == 'alpha_shape':
         poly = alpha_shape(points, alpha)[0]
-    elif polygon_type == 'convex_hull':
+    elif polygenize_method == 'convex_hull':
         poly = MultiPoint(points).convex_hull
     return poly
-
-
-def is_in_polygon_features(df):
-    """ extract for each activity lat and lng if it happened within WW polygon"""
-
-    df['firstBlip_in_polygon'] = df['firstBlip_polygon_id'].notna()
-
-    conditions = [
-        (df['firstBlip_in_polygon'] == True) & (df['lastBlip_polygon_id'].isna() == True),
-        (df['firstBlip_in_polygon'] == False) & (df['lastBlip_polygon_id'].isna() == True),
-        (df['lastBlip_polygon_id'].isna() == False)
-    ]
-
-    choices = ['not_ended', 'False', 'True']
-    df['lastBlip_in_polygon'] = np.select(conditions, choices)
-
-    return df
 
 
 def alpha_shape(points, alpha, only_outer=True):
@@ -192,7 +158,7 @@ def calc_polygon_distance_from_nearest_port(polygon, ports_df):
     """takes a polygon and ports df,
      calculate haversine distances from ports to polygon,
      returns: the name of nearest port and distance from it"""
-    ports_centroids = ports_df.loc[:, ['lat', 'lng']].to_numpy()
+    ports_centroids = ports_df.loc[:, ['lng', 'lat']].to_numpy()
     polygon_centroid = (polygon.centroid.y, polygon.centroid.x)
     dists = [haversine(port_centroid, polygon_centroid) for port_centroid in ports_centroids]
     min_dist = np.min(dists)
@@ -219,41 +185,45 @@ def merge_polygons(geo_df):
     return merged_polygons
 
 
-def calc_nearest_shore(df, shoreline_df, method='euclidean'):
+def calc_nearest_shore(poly, shoreline_polygon, method='euclidean'):
 
-    #TODO cahnge to handle signle polygon
+    if poly.intersects(shoreline_polygon):
+        distance = 0
+        nearest_shore = {f'distance_from_shore_{method}': distance}
 
-    logging.info('loading and processing shoreline file - START')
+    else:
+        nearest_polygons_points = nearest_points(shoreline_polygon, poly)
+        point1, point2 = (nearest_polygons_points[0].y, nearest_polygons_points[0].x), \
+                         (nearest_polygons_points[1].y, nearest_polygons_points[1].x)
 
-    shoreline_multi_polygon = merge_polygons(shoreline_df)
-    logging.info('loading and processing shoreline file - END')
+        if method == 'euclidean':
+            distance = np.linalg.norm(np.array(point1) - np.array(point2))
+        elif method == 'haversine':
+            distance = haversine(point1, point2)
+        else:
+            raise ValueError('method must be "euclidean" or "haversine"')
+
+        nearest_shore = {f'distance_from_shore_{method}': distance,
+                         'nearest_shore_lat': point1[0],
+                         'nearest_shore_lng': point1[1],
+                         'nearest_point_lat': point2[0],
+                         'nearest_point_lng': point2[1]}
+
+    return nearest_shore
+
+
+def calc_nearest_shore_bulk(df, shoreline_polygon, method='euclidean'):
 
     results_list = []
 
     for row in tqdm(df['geometry'].iteritems()):
         index, poly = row
-        #poly = shapely.wkt.loads(poly)
+
         if index % 100 == 0 and index != 0:
             logging.info(f'{index} instances was calculated')
-        if poly.intersects(shoreline_multi_polygon):
-            distance = 0
-            results_list.append({f'distance_from_shore_{method}': distance})
-        else:
-            nearest_polygons_points = nearest_points(shoreline_multi_polygon, poly)
-            point1, point2 = (nearest_polygons_points[0].y, nearest_polygons_points[0].x), \
-                             (nearest_polygons_points[1].y, nearest_polygons_points[1].x)
-            if method == 'euclidean':
-                distance = np.linalg.norm(np.array(point1) - np.array(point2))
-            elif method == 'haversine':
-                distance = haversine(point1, point2)
-            else:
-                raise ValueError('method must be "euclidean" or "haversine"')
 
-            results_list.append({f'distance_from_shore_{method}': distance,
-                                 'nearest_shore_lat': point1[0],
-                                 'nearest_shore_lng': point1[1],
-                                 'nearest_point_lat': point2[0],
-                                 'nearest_point_lng': point2[1]})
+        nearest_shore = calc_nearest_shore(poly, shoreline_polygon, method)
+        results_list.append(nearest_shore)
 
     results_df = pd.DataFrame(results_list)
     shared_columns = set(results_df.columns).intersection(set(df.columns))
@@ -265,7 +235,7 @@ def calc_nearest_shore(df, shoreline_df, method='euclidean'):
 def calc_polygon_distance_from_nearest_ww_polygon(polygon, polygons_df):
     """takes a polygon and an array of ports centroids
     and returns the distance in km from the nearest port from the array"""
-    ww_polygons_centroids = np.array(polygons_df.geometry.apply(lambda poly: (poly.centroid.y, poly.centroid.x)))
+    ww_polygons_centroids = np.array([polygons_df.geometry.centroid.y, polygons_df.geometry.centroid.x]).T
     polygon_centroid = (polygon.centroid.y, polygon.centroid.x)
     dists = [haversine(ww_poly_centroid, polygon_centroid) for ww_poly_centroid in ww_polygons_centroids]
     return np.min(dists)
@@ -374,3 +344,36 @@ def calc_entropy(feature):
 def create_google_maps_link_to_centroid(centroid):
     centroid_lat, centroid_lng = centroid.y, centroid.x
     return f'https://maps.google.com/?ll={centroid_lat},{centroid_lng}'
+
+
+def optimize_polygon_by_probs(points, probs, polygon_type, alpha=4, s=1):
+
+    all_prob = np.linspace(min(probs), 1, 20)
+
+    metrics = []
+
+    for prob in all_prob:
+        probs_mask = probs >= prob
+        relevant_points = points[probs_mask]
+        if len(relevant_points) > 0:
+
+            poly = polygon_from_points(relevant_points, polygon_type, alpha)
+
+            area_size = calc_polygon_area_sq_unit(poly)
+            metrics.append(area_size)
+
+    kneedle = KneeLocator(all_prob, metrics, S=s, curve="convex", direction="decreasing")
+
+    original_polygon = polygon_from_points(points, polygon_type, alpha)
+
+    if kneedle.knee:
+
+        final_points = points[probs >= kneedle.knee]
+        points_removed = len(points) - len(final_points)
+        poly = polygon_from_points(final_points, polygon_type, alpha)
+
+    else:
+        poly = original_polygon
+        points_removed = 0
+
+    return poly, original_polygon, kneedle.knee, points_removed, metrics

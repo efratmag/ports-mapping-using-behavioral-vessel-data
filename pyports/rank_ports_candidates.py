@@ -1,5 +1,7 @@
 import numpy as np
 from sklearn import preprocessing
+import logging
+logging.basicConfig(level=logging.INFO)
 
 
 def sigmoid(x):
@@ -13,9 +15,35 @@ def calc_rank(candidate):
 
     return rank
 
-#TODO add filters functions
 
-def main(geo_df_clust_polygons):
+def filter_candidates(geo_df_clust_polygons, min_nunique_vessels=20, min_distance_from_ww_polygons_km=30,
+                      max_distance_from_shore_km=5, remove_intersection_polygon=True):
+
+    geo_df_clust_polygons = geo_df_clust_polygons[geo_df_clust_polygons['n_unique_vesselID'] >= min_nunique_vessels]
+
+    geo_df_clust_polygons = geo_df_clust_polygons[
+        geo_df_clust_polygons['dist_to_ww_poly'] >= min_distance_from_ww_polygons_km]
+
+    if remove_intersection_polygon:
+        geo_df_clust_polygons = geo_df_clust_polygons[geo_df_clust_polygons['pct_intersection'] == 0]
+
+    if 'distance_from_shore_haversine' in geo_df_clust_polygons.columns:
+
+        geo_df_clust_polygons = geo_df_clust_polygons[
+            geo_df_clust_polygons['distance_from_shore_haversine'] <= max_distance_from_shore_km]
+    else:
+        logging.info('distance_from_shore_haversine is not exists, max_distance_from_shore_km filter skipped')
+
+    return geo_df_clust_polygons
+
+
+def main(geo_df_clust_polygons, debug=False, min_nunique_vessels=20, min_distance_from_ww_polygons_km=30,
+         max_distance_from_shore_km=5, remove_intersection_polygon=True):
+
+    if not debug:
+        geo_df_clust_polygons = filter_candidates(geo_df_clust_polygons, min_nunique_vessels,
+                                                  min_distance_from_ww_polygons_km, max_distance_from_shore_km,
+                                                  remove_intersection_polygon)
 
     geo_df_clust_polygons['rank'] = geo_df_clust_polygons.apply(lambda row: calc_rank(row), axis=1)
 

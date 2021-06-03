@@ -1,7 +1,8 @@
 from shapely.geometry import shape, Point
 
 from shapely import ops
-from pyports.geo_utils import haversine, extract_coordinates
+from pyports.geo_utils import haversine
+from pyports.get_data import extract_coordinates
 import Geohash
 import os
 import fire
@@ -11,8 +12,6 @@ import geopandas as gpd
 from sklearn.neighbors import BallTree
 
 import logging
-
-# TODO: add (1)new class name (2)next port name
 
 ACTIVITIES_FILES = ['mooring.csv.gz', 'drifting.csv.gz', 'port_calls.csv.gz', 'anchoring.csv.gz']
 
@@ -38,6 +37,7 @@ def load_and_process_polygons_file(polygons_file_path, area_geohash=None):
     polygons_df['centroid'] = polygons_df['geometry'].centroid  # get polygons centroid
     polygons_df['geohash'] = polygons_df['centroid'].apply(lambda x: Geohash.encode(x.y, x.x, 2))  # resolve geohash per polygon centroid
     polygons_df['polygon_area_type'] = [d.get('areaType') for d in polygons_df.properties]  # add areaType column from nested dict
+    polygons_df['name'] = [d.get('title') for d in polygons_df.properties]  # add name column from nested dict
 
     if area_geohash:
         polygons_df = polygons_df[polygons_df['geohash'] == area_geohash].drop('centroid', axis=1)  # drop polygons out of geohash
@@ -149,10 +149,19 @@ def load_and_process_vessels_file(import_path):
     vessels_size['size_category'] = pd.qcut(vessels_size['size'], 3, labels=["small", "medium", "big"])
     vessels_df = vessels_df.merge(vessels_size['size_category'], left_index=True, right_index=True, how='left')
 
-    vessels_df['class_calc_updated'] = vessels_df['class_calc'].fillna('Other').replace({'MilitaryOrLaw': 'Other',
-                                                                                         'Pleasure': 'Other',
-                                                                                         'Unknown': 'Other',
-                                                                                         'HighSpeedCraft': 'Other'})
+    # vessels_df['class_calc_updated'] = vessels_df['class_calc'].fillna('Other').replace({'MilitaryOrLaw': 'Other',
+    #                                                                                      'Pleasure': 'Other',
+    #                                                                                      'Unknown': 'Other',
+    #                                                                                      'HighSpeedCraft': 'Other'})
+
+    conditions = [(vessels_df["class_calc"] == 'Cargo') & (vessels_df["subclass_documented"] == 'Container Vessel'),
+                  (vessels_df["class_calc"] == 'Cargo') & (vessels_df["subclass_documented"] != 'Container Vessel'),
+                  (vessels_df["class_calc"] == 'Tanker')]
+
+    choices = ["cargo_container", "cargo_other", "tanker"]
+    vessels_df["class_new"] = np.select(conditions, choices)
+    vessels_df["class_new"] = vessels_df["class_new"].replace({'0': 'other'})
+
     vessels_df = vessels_df.add_prefix('vessel_')
 
     return vessels_df
@@ -212,6 +221,12 @@ def main(import_path, export_path, debug=True):
 
             logging.info(f'merging vessels data...')
             df = df.merge(vessels_df, left_on='vesselId', right_index=True)
+
+            logging.info(f'merging nextPort data...')
+            df = df.merge(polygons_df.set_index('polygon_id'), left_on='nextPort', right_index=True, how='left').rename(
+                columns={'name': 'nextPort_name'})
+            df.nextPort_name.fillna('UNKNOWN', inplace=True)
+
             df['activity'] = file_name.replace('.csv.gz', '')
 
             results_list.append(df)
