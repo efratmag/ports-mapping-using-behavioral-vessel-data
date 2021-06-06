@@ -37,7 +37,7 @@ def get_data_for_clustering(import_path, activity, debug, sub_area_polygon_fname
 
     logging.info('loading polygons data...')
     polygons_df = gpd.read_file(os.path.join(import_path, 'maps/polygons.geojson'),
-                                             usecols=['_id', 'title', 'areaType', 'geometry'])  # WW polygons
+                                usecols=['_id', 'title', 'areaType', 'geometry'])  # WW polygons
     # TODO: find out why still get error: WARNING:fiona.ogrext:Skipping field otherNames: invalid type 5
 
     logging.info('loading shoreline data...')
@@ -73,6 +73,8 @@ def polygenize_clusters_with_features(type_of_area_mapped, df_for_clustering, po
     logging.info('starting feature extraction for clusters...')
 
     df_for_clustering = df_for_clustering[df_for_clustering.cluster_label != -1]  # remove clustering outlier points
+
+    ww_polygons_centroids = np.array([polygons_df.geometry.centroid.y, polygons_df.geometry.centroid.x]).T
 
     cluster_polygons = []
 
@@ -122,7 +124,7 @@ def polygenize_clusters_with_features(type_of_area_mapped, df_for_clustering, po
         record['centroid_lat'] = polygon.centroid.y  # latitude of polygon centroid
         record['centroid_lng'] = polygon.centroid.x  # longitude of polygon centroid
         record['pct_intersection'] = polygon_intersection(polygon, polygons_df)  # percent intersection with WW polygons
-        record['dist_to_ww_poly'] = calc_polygon_distance_from_nearest_ww_polygon(polygon, polygons_df)  # distance from
+        record['dist_to_ww_poly'] = calc_polygon_distance_from_nearest_ww_polygon(polygon, ww_polygons_centroids)  # distance from
         # nearest WW polygon
         if type_of_area_mapped == 'ports':
             # calculate distance from nearest port and from shoreline only for ports for later filtering
