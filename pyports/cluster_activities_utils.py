@@ -8,7 +8,7 @@ import os
 import logging
 
 
-def get_data_for_clustering(import_path, activity, debug, sub_area_polygon_fname, blip):
+def get_data_for_clustering(import_path, activity, debug, sub_area_polygon_fname, blip, only_container_vessels):
 
     logging.info('loading data for clustering - START')
 
@@ -22,6 +22,12 @@ def get_data_for_clustering(import_path, activity, debug, sub_area_polygon_fname
         logging.info('Calculating points within sub area...')
         sub_area_polygon = gpd.read_file(os.path.join(import_path, sub_area_polygon_fname)).loc[0, 'geometry']
         df = df[df.apply(lambda x: Point(x[f'{blip}Blip_lng'], x[f'{blip}Blip_lat']).within(sub_area_polygon), axis=1)]
+
+    if only_container_vessels:
+        df = df[df.vessel_class_new == 'cargo_container']  # take only container vessels
+        df = df[df.nextPort_name != 'UNKNOWN']  # remove missing values
+        df = df.groupby("nextPort_name").filter(lambda x: len(x) > 20)  # take only ports with at least 20 records
+        df.reset_index(drop=True, inplace=True)  # reset index
 
     ports_df = gpd.read_file(os.path.join(import_path, 'maps/ports.geojson'))  # WW ports
     ports_df.drop_duplicates(subset='name', inplace=True)
@@ -55,6 +61,8 @@ def polygenize_clusters_with_features(type_of_area_mapped, df_for_clustering, po
     :param only_container_vessels: boolean, only relevant if type_of_area_mapped=='pwa'.
     :return: geopandas dataframe of all polygenized clusters with their features.
     """
+
+    logging.info('starting feature extraction for clusters...')
 
     df_for_clustering = df_for_clustering[df_for_clustering.cluster_label != -1]  # remove clustering outlier points
 
@@ -121,6 +129,8 @@ def polygenize_clusters_with_features(type_of_area_mapped, df_for_clustering, po
         cluster_polygons.append(record)
 
     cluster_polygons = gpd.GeoDataFrame(cluster_polygons)
+
+    logging.info('finished extracting polygons features!')
 
     return cluster_polygons
 
