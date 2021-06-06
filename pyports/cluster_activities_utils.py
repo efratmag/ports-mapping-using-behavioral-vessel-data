@@ -123,8 +123,10 @@ def polygenize_clusters_with_features(type_of_area_mapped, df_for_clustering, po
         record['is_in_river'] = polygon.within(main_land)  # is the polygon in rivers (True) or in the sea/ocean (False)
         record['centroid_lat'] = polygon.centroid.y  # latitude of polygon centroid
         record['centroid_lng'] = polygon.centroid.x  # longitude of polygon centroid
-        record['pct_intersection'] = polygon_intersection(polygon, polygons_df)  # percent intersection with WW polygons
+        record['pct_intersection'] = polygon_intersection(polygon, polygons_df, type_of_area_mapped)  # percent intersection with WW polygons
         record['dist_to_ww_poly'] = calc_polygon_distance_from_nearest_ww_polygon(polygon, ww_polygons_centroids)  # distance from
+        # TODO: find out why getting warning: UserWarning: Geometry is in a geographic CRS. Results from 'centroid' are
+        #  likely incorrect. Use 'GeoSeries.to_crs()' to re-project geometries to a projected CRS before this operation.
         # nearest WW polygon
         if type_of_area_mapped == 'ports':
             # calculate distance from nearest port and from shoreline only for ports for later filtering
