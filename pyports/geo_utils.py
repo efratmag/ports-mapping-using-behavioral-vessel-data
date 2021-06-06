@@ -140,12 +140,18 @@ def calc_cluster_density(points):
     return 1 / mean_squared_distane_km
 
 
-def polygon_intersection(clust_polygon, ww_polygons):
+def polygon_intersection(clust_polygon, ww_polygons, type_of_area_mapped):
     """
-    :param clust_polygons: df of clustering polygons
+    :param clust_polygon: df of clustering polygons
     :param ww_polygons: df of windward polygons
     :return: geopandas dataframe with extra feature of intersection of polygons with windward's polygons
     """
+    # choose relevant type of polygons
+    if type_of_area_mapped == 'pwa':
+        ww_polygons = ww_polygons[ww_polygons.areaType == 'PortWaitingArea']
+    elif type_of_area_mapped == 'ports':
+        ww_polygons = ww_polygons[ww_polygons.areaType == 'Port']
+
     intersection_value = 0
     temp_df = ww_polygons[ww_polygons.intersects(clust_polygon)]
     if not temp_df.empty:
@@ -232,10 +238,9 @@ def calc_nearest_shore_bulk(df, shoreline_polygon, method='euclidean'):
     return df
 
 
-def calc_polygon_distance_from_nearest_ww_polygon(polygon, polygons_df):
+def calc_polygon_distance_from_nearest_ww_polygon(polygon, ww_polygons_centroids):
     """takes a polygon and an array of ports centroids
     and returns the distance in km from the nearest port from the array"""
-    ww_polygons_centroids = np.array([polygons_df.geometry.centroid.y, polygons_df.geometry.centroid.x]).T
     polygon_centroid = (polygon.centroid.y, polygon.centroid.x)
     dists = [haversine(ww_poly_centroid, polygon_centroid) for ww_poly_centroid in ww_polygons_centroids]
     return np.min(dists)

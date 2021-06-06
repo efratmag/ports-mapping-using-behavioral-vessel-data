@@ -1,0 +1,13 @@
+fire~=0.4.0
+pandas~=1.2.1
+numpy~=1.20.0
+geopandas~=0.8.2
+Shapely~=1.7.1
+sklearn~=0.0
+scikit-learn~=0.24.1
+scipy~=1.6.1
+tqdm~=4.56.0
+hdbscan~=0.8.27
+Geohash~=1.0
+setuptools~=40.6.2
+kneed~=0.7.0
