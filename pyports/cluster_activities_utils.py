@@ -36,8 +36,9 @@ def get_data_for_clustering(import_path, activity, debug, sub_area_polygon_fname
     ports_df.drop_duplicates(subset='name', inplace=True)
 
     logging.info('loading polygons data...')
-    polygons_df = gpd.read_file(os.path.join(import_path, 'maps/polygons.geojson'))  # WW polygons
-    #TODO: det only needed features from polygons_df- id, type and geometry
+    polygons_df = gpd.read_file(os.path.join(import_path, 'maps/polygons.geojson'),
+                                             usecols=['_id', 'title', 'areaType', 'geometry'])  # WW polygons
+    # TODO: find out why still get error: WARNING:fiona.ogrext:Skipping field otherNames: invalid type 5
 
     logging.info('loading shoreline data...')
     shoreline_df = gpd.read_file(os.path.join(import_path, 'maps/shoreline_layer.geojson'))  # shoreline layer
