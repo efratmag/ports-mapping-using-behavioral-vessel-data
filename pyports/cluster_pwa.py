@@ -38,16 +38,10 @@ def main(import_path, export_path, activity='anchoring', blip='first', only_cont
 
     """
 
+    # loading data
     df, ports_df, polygons_df, main_land, shoreline_polygon = \
         get_data_for_clustering(import_path, activity, debug,
-                                sub_area_polygon_fname, blip)
-
-    # TODO: add next 4 lines to get_data_for_clustering (+ the only_container_vessels param)
-    if only_container_vessels:
-        df = df[df.vessel_class_new == 'cargo_container']  # take only container vessels
-        df = df[df.nextPort_name != 'UNKNOWN']  # remove missing values
-        df = df.groupby("nextPort_name").filter(lambda x: len(x) > 20)  # take only ports with at least 20 records
-        df.reset_index(drop=True, inplace=True)  # reset index
+                                sub_area_polygon_fname, blip, only_container_vessels)
 
     locations = df[[f'{blip}Blip_lat', f'{blip}Blip_lng']].to_numpy()  # points for clustering
 
