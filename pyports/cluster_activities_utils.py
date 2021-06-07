@@ -26,7 +26,7 @@ def get_data_for_clustering(import_path, activity, debug, sub_area_polygon_fname
         df = df[df.apply(lambda x: Point(x[f'{blip}Blip_lng'], x[f'{blip}Blip_lat']).within(sub_area_polygon), axis=1)]
 
     if only_container_vessels:
-        df = df[df.class_new == 'cargo_container']  # take only container vessels
+        df = df[df.vessel_class_new == 'cargo_container']  # take only container vessels
         df = df[df.nextPort_name != 'UNKNOWN']  # remove missing values
         df = df.groupby("nextPort_name").filter(lambda x: len(x) > 20)  # take only ports with at least 20 records
         df.reset_index(drop=True, inplace=True)  # reset index
@@ -116,9 +116,9 @@ def polygenize_clusters_with_features(type_of_area_mapped, df_for_clustering, po
         # cluster
         if not only_container_vessels:
             # only measure vessel type variance if there is more than one vessel type
-            record['most_freq_vessel_type'] = cluster_df['class_new'].mode()[0]  # most frequent vessel type in
+            record['most_freq_vessel_type'] = cluster_df['vessel_class_new'].mode()[0]  # most frequent vessel type in
             # cluster
-            record['vessel_type_variance'] = calc_entropy(cluster_df['class_new'])  # variance of vessel type in
+            record['vessel_type_variance'] = calc_entropy(cluster_df['vessel_class_new'])  # variance of vessel type in
             # cluster
         record['is_in_river'] = polygon.within(main_land)  # is the polygon in rivers (True) or in the sea/ocean (False)
         record['centroid_lat'] = polygon.centroid.y  # latitude of polygon centroid
