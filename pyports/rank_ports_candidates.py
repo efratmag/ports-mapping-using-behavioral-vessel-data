@@ -59,8 +59,8 @@ def main(geo_df_clust_polygons, debug=False, min_nunique_vessels=20, min_distanc
 
     x = geo_df_clust_polygons['rank'].values.astype(float).reshape(-1, 1)
     min_max_scaler = preprocessing.MinMaxScaler()
-    geo_df_clust_polygons['rank_scaled'] = min_max_scaler.fit_transform(x)
+    geo_df_clust_polygons['rank_scaled'] = min_max_scaler.fit_transform(x)  # rescale ranks to 0 ->1
 
-    geo_df_clust_polygons = geo_df_clust_polygons.sort_values('rank_scaled', ascending=False)
+    geo_df_clust_polygons = geo_df_clust_polygons.sort_values('rank_scaled', ascending=False)  # sort candidates by rank
 
     return geo_df_clust_polygons
