@@ -25,6 +25,8 @@ def extract_coordinates(df, col='firstBlip'):
     :return: df with lat lng coordinates
     """
 
+    logging.info('extract_coordinates - START')
+
     if col+'_lng' not in df.columns and col+'_lat' not in df.columns:
 
         logging.info(f'extracting coordinates for {col}...')
@@ -33,13 +35,15 @@ def extract_coordinates(df, col='firstBlip'):
 
         df = df.merge(coordinates_df, left_index=True, right_index=True, how='left')
 
+    logging.info('extract_coordinates - END')
+
     return df
 
 
 def find_intersection_with_polygons(df, polygons_df, col_prefix, force_enrichment=True):
 
     """
-    this function will calculate the intersections between activities and ww polygons
+    this function will calculate the intersections between points activities and ww polygons
     :param df: activity df
     :param polygons_df: ww polygons df
     :param col_prefix: "firstBlip" / "lastBlip"
@@ -52,13 +56,13 @@ def find_intersection_with_polygons(df, polygons_df, col_prefix, force_enrichmen
     if col_prefix+'_polygon_id' not in df.columns or force_enrichment:
 
         df['geometry'] = df.apply(lambda x: Point(x[col_prefix + '_lng'], x[col_prefix + '_lat']) if not pd.isna(
-            x[col_prefix + '_lat']) else None, axis=1)
+            x[col_prefix + '_lat']) else None, axis=1)  # convert lat,lng to Point object
 
         df = gpd.GeoDataFrame(df)
 
         logging.info(f'performing spatial join - {col_prefix}...')
         df = gpd.sjoin(df, polygons_df[['polygon_id', 'polygon_area_type', 'geometry'
-                                        ]], how='left').drop('index_right', axis=1)
+                                        ]], how='left').drop('index_right', axis=1)  # spatial join
 
         df['polygon_id'], df['polygon_area_type'] = df['polygon_id'].astype(str), df['polygon_area_type'].astype(str)
 
@@ -76,6 +80,14 @@ def find_intersection_with_polygons(df, polygons_df, col_prefix, force_enrichmen
 
 def is_in_polygon_features(df):
 
+    """
+    this function...
+    :param df:
+    :return:
+    """
+
+    logging.info('is_in_polygon_features - START')
+
     df["firstBlip_in_polygon"] = df["firstBlip_polygon_id"].notna()
 
     conditions = [
@@ -86,10 +98,21 @@ def is_in_polygon_features(df):
     choices = ["not_ended", "False", "True"]
     df["lastBlip_in_polygon"] = np.select(conditions, choices)
 
+    logging.info('is_in_polygon_features - END')
+
     return df
 
 
 def add_dist_from_nearest_port(df, ports_df):
+
+    """
+    this function...
+    :param df:
+    :param ports_df:
+    :return:
+    """
+
+    logging.info('add_dist_from_nearest_port - START')
 
     ports_gdf = gpd.GeoDataFrame(
         ports_df, geometry=gpd.points_from_xy(ports_df.lng, ports_df.lat))
@@ -97,6 +120,8 @@ def add_dist_from_nearest_port(df, ports_df):
     tree = BallTree(ports_gdf[['lat', 'lng']].values, leaf_size=2)
 
     df['distance_nearest_port'], _ = tree.query(df[['firstBlip_lat', 'firstBlip_lng']].values, k=1)
+
+    logging.info('add_dist_from_nearest_port - END')
 
     return df
 
@@ -112,7 +137,7 @@ def get_ww_polygons(import_path=None, db=None):
 
     logging.info('get_ports_wa_polygons - START')
 
-    # TODO: fill in mongo query here
+    # TODO: fill in mongo query
     if not import_path:
         col = db["polygons"]
 
@@ -146,13 +171,13 @@ def get_ww_polygons(import_path=None, db=None):
     return polygons_df
 
 
-def get_vessels_info(import_path, db, vessels_ids):
+def get_vessels_info(import_path, db, vessels_ids=None):
 
     """
     function that extract vessels info
     :param import_path: path to the vessels info file location
     :param db: MongoDB object
-    :param vessels_ids:
+    :param vessels_ids: filter data by specific vessels_ids
     :return:
     """
 
@@ -161,10 +186,10 @@ def get_vessels_info(import_path, db, vessels_ids):
     projection = {'vesselId': 1, "class_calc": 1, "subclass_documented": 1, "built_year": 1,
                   "name": 1, "deadweight": 1, "draught": 1, "size": 1, "age": 1}
 
-    # TODO: fill in mongo query here
+    # TODO: fill in mongo query
     if not import_path:
         col = db["vessels"]
-        col = col.find({'_id': {'$in': [ObjectId(vessel) for vessel in vessels_ids]}}, projection)
+        col = col.find({'_id': {'$in': [ObjectId(vessel) for vessel in vessels_ids]}} if vessels_ids else {}, projection)
 
         vessels_df = pd.DataFrame(list(col)).drop(['_id'], axis=1)
 
@@ -174,6 +199,10 @@ def get_vessels_info(import_path, db, vessels_ids):
         with open(vessels_file_path, 'r') as vessels_file:
             vessels_file = json.load(vessels_file)
             vessels_df = pd.DataFrame.from_dict(vessels_file, orient='index')
+
+            if vessels_ids:
+                vessels_df = vessels_df[vessels_df.index.isin(vessels_ids)]
+
             vessels_df = vessels_df[projection].drop('vesselId', axis=1)
 
     conditions = [(vessels_df["class_calc"] == 'Cargo') & (vessels_df["subclass_documented"] == 'Container Vessel'),
@@ -186,8 +215,6 @@ def get_vessels_info(import_path, db, vessels_ids):
 
     vessels_df = vessels_df.add_prefix('vessel_')
     vessels_df = vessels_df.reset_index().rename(columns={'index': 'vesselId'})
-    if vessels_ids:
-        vessels_df = vessels_df[vessels_df['vesselId'].isin(vessels_ids)]
 
     logging.info('get_vessels_info - END')
 
@@ -205,7 +232,7 @@ def get_ports_info(import_path, db):
 
     logging.info('get_ports_info - START')
 
-    # TODO: fill in mongo query here
+    # TODO: fill in mongo query
     if not import_path:
         col = db["ports"]
         col = col.find({}, {'_id': 1, 'country': 1, 'name': 1, 'center_coordinates.0': 1, 'center_coordinates.1': 1})
@@ -230,13 +257,23 @@ def get_ports_info(import_path, db):
     return ports_df
 
 
-def get_activity_df(import_path, db, vessels_ids, activity='mooring', nrows=None):
+def get_activity_df(import_path, db, vessels_ids=None, activity=ACTIVITY.MOORING, nrows=None):
+
+    """
+
+    :param import_path:
+    :param db: MongoDB object
+    :param vessels_ids: filter data by specific vessels_ids
+    :param activity: "mooring" / "anchoring"
+    :param nrows: if passed, will limit the df by this value
+    :return:
+    """
 
     logging.info(F'get_activity_df ({activity}) - START')
 
-    # TODO: fill in mongo query here
+    # TODO: fill in mongo query
     if not import_path:
-        query = {'vesselId': {'$in': [ObjectId(vessel) for vessel in vessels_ids]}}
+        query = {'vesselId': {'$in': [ObjectId(vessel) for vessel in vessels_ids]}} if vessels_ids else {}
         projection = {'_id': 1, 'vesselId': 1, 'startDate': 1, 'endDate': 1, 'duration': 1, 'nextPort': 1,
                       'firstBlip.geometry.coordinates.0': 1, 'firstBlip.geometry.coordinates.1': 1,
                       'lastBlip.geometry.coordinates.0': 1, 'lastBlip.geometry.coordinates.1': 1}
@@ -253,9 +290,13 @@ def get_activity_df(import_path, db, vessels_ids, activity='mooring', nrows=None
         cols = ['_id', 'firstBlip', 'lastBlip', 'vesselId', 'startDate', 'endDate', 'duration', 'nextPort']
         activity_file_path = os.path.join(import_path, f'{activity}.csv.gz')
         activity_df = pd.read_csv(activity_file_path, nrows=nrows, usecols=cols)
+
+        if vessels_ids:
+            activity_df = activity_df[activity_df['vesselId'].isin(vessels_ids)]  # filter data by specific vessels_ids
+
         activity_df = extract_coordinates(activity_df, 'firstBlip')
         activity_df = extract_coordinates(activity_df, 'lastBlip')
-        activity_df = activity_df.drop(['firstBlip', 'lastBlip'], axis=1)
+        activity_df = activity_df.drop(['firstBlip', 'lastBlip'], axis=1)  # drop nested locations columns
 
     logging.info(f'get_activity_df ({activity}) - END')
 
@@ -270,7 +311,7 @@ def main(export_path, vessels_ids=None, import_path=None, use_db=False, debug=Tr
     :param import_path: path to directory with all relevant files
     :param vessels_ids: comma-separated list of vessels ids for mongo query
     :param use_db: if True, will use mongo db to query data
-    :param debug: if True, only a first 10K rows of each file will be processed
+    :param debug: if True, only a first 10K rows of each file will be processed for each activity file
     :return:
     """
 
@@ -279,12 +320,13 @@ def main(export_path, vessels_ids=None, import_path=None, use_db=False, debug=Tr
     if vessels_ids and isinstance(vessels_ids, str):
         vessels_ids = vessels_ids.split(',')
 
+    # TODO: update with winward db methods
     db = None
     if use_db:
         myclient = pymongo.MongoClient("<your connection string here>")  # initiate MongoClient for mongo queries
         db = myclient["<DB name here>"]
 
-    nrows = 10000 if debug else None  # 10K rows per file if debug mode == True
+    nrows = 10000 if debug else None  # 10K rows per activity file if debug == True
 
     polygons_df = get_ww_polygons(import_path, db)
     vessels_df = get_vessels_info(import_path, db, vessels_ids)
