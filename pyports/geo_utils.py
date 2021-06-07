@@ -120,6 +120,13 @@ def alpha_shape(points, alpha, only_outer=True):
 
 def calc_polygon_area_sq_unit(polygon, unit='sqkm'):
 
+    """
+    this function will calculate the square area of a polygon (Kilometers/ Miles)
+    :param polygon: Polygon object
+    :param unit: sqkm / sqmi
+    :return:
+    """
+
     avg_lat, polygon = polygon_to_meters(polygon)
     polygon_area = np.sqrt(polygon.area) / UNIT_RESOLVER[unit]
     polygon_area *= polygon_area
@@ -193,6 +200,14 @@ def merge_polygons(geo_df):
 
 def calc_nearest_shore(poly, shoreline_polygon, method='euclidean'):
 
+    """
+    this function will calculate nearest point to shoreline layer for a given polygon
+    :param poly: Polygon Object
+    :param shoreline_polygon: shoreline layer polygon
+    :param method: euclidean / haversine
+    :return:
+    """
+
     if poly.intersects(shoreline_polygon):
         distance = 0
         nearest_shore = {f'distance_from_shore_{method}': distance}
@@ -219,6 +234,14 @@ def calc_nearest_shore(poly, shoreline_polygon, method='euclidean'):
 
 
 def calc_nearest_shore_bulk(df, shoreline_polygon, method='euclidean'):
+
+    """
+    this function will iterate over df with polygons and calculate nearest point to shoreline layer
+    :param df: geopandas df with polygons
+    :param shoreline_polygon: shoreline layer polygon
+    :param method: euclidean / haversine
+    :return:
+    """
 
     results_list = []
 
@@ -247,6 +270,11 @@ def calc_polygon_distance_from_nearest_ww_polygon(polygon, ww_polygons_centroids
 
 
 def get_multipolygon_exterior(multipolygon):
+    """
+    this function will return exterior points of a multipolygon
+    :param multipolygon:
+    :return:
+    """
     coordinates = []
 
     polygons_list = list(multipolygon)
@@ -258,6 +286,13 @@ def get_multipolygon_exterior(multipolygon):
 
 
 def polygon_to_wgs84(polygon, avg_lat=None):
+
+    """
+    this function will return polygon with wgs84 crs
+    :param polygon: Polygon object
+    :param avg_lat: average latitude value
+    :return:
+    """
 
     if not avg_lat:
         if isinstance(polygon, Polygon):
@@ -280,6 +315,13 @@ def polygon_to_wgs84(polygon, avg_lat=None):
 
 
 def polygon_to_meters(polygon, avg_lat=None):
+
+    """
+    this function will return polygon with meters crs
+    :param polygon: Polygon object
+    :param avg_lat: average latitude value
+    :return:
+    """
 
     if not avg_lat:
 
@@ -308,6 +350,14 @@ def get_avg_lat(coordinates):
 
 def inflate_polygon(polygon, meters, resolution=4):
 
+    """
+    This function will inflate polygon by meters
+    :param polygon: Polygon object
+    :param meters: meters for the polygon to be inflated
+    :param resolution: resolution value determines the number of segments used to approximate a quarter circle around a point.
+    :return:
+    """
+
     avg_lat, polygon = polygon_to_meters(polygon)
     polygon = polygon.buffer(meters, resolution=resolution)
 
@@ -317,6 +367,15 @@ def inflate_polygon(polygon, meters, resolution=4):
 
 
 def merge_adjacent_polygons(geo_df, inflation_meter=1000, aggfunc='mean'):
+
+    """
+    This function will merge proximate polygons.
+    First, polgons will be inflating by "inflation_meter", then intersected polygons will be merged
+    :param geo_df: geopandas df with polygons
+    :param inflation_meter:
+    :param aggfunc: aggfunc for the polygons attributes aggregation
+    :return:
+    """
 
     logging.info('merge_adjacent_polygons - START')
 
@@ -347,6 +406,13 @@ def calc_entropy(feature):
 
 
 def create_google_maps_link_to_centroid(centroid):
+
+    """
+
+    :param centroid: Point object
+    :return: google maps link with the location
+    """
+
     centroid_lat, centroid_lng = centroid.y, centroid.x
     return f'https://maps.google.com/?ll={centroid_lat},{centroid_lng}'
 
