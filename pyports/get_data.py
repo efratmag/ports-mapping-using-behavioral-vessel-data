@@ -1,6 +1,4 @@
 from shapely.geometry import shape, Point
-from shapely import ops
-from pyports.geo_utils import haversine
 import os
 import fire
 import pandas as pd
@@ -40,6 +38,15 @@ def extract_coordinates(df, col='firstBlip'):
 
 def find_intersection_with_polygons(df, polygons_df, col_prefix, force_enrichment=True):
 
+    """
+    this function will calculate the intersections between activities and ww polygons
+    :param df: activity df
+    :param polygons_df: ww polygons df
+    :param col_prefix: "firstBlip" / "lastBlip"
+    :param force_enrichment: if True, will recreate column, even if exists
+    :return:
+    """
+
     logging.info(f'converting to Point - {col_prefix}...')
 
     if col_prefix+'_polygon_id' not in df.columns or force_enrichment:
@@ -63,31 +70,6 @@ def find_intersection_with_polygons(df, polygons_df, col_prefix, force_enrichmen
         df = df.merge(merged_polygons, on='_id')
         df = df.rename(columns={'polygon_id': col_prefix + '_polygon_id',
                                 'polygon_area_type': col_prefix + '_polygon_area_type'})
-
-    return df
-
-
-def calc_distance_from_shore(df, shore_lines, col="firstBlip"):
-
-    logging.info(f'Calc Distance From Shore - {col}...')
-
-    if col+'_closer_shore_lat' not in df.columns:
-
-        df['geometry'] = df.apply(lambda x: Point(x[col + '_lng'], x[col + '_lat']) if not pd.isna(
-            x[col + '_lat']) else None, axis=1)
-
-    df = gpd.GeoDataFrame(df)
-
-    df['nearest_shore_point'] = df.apply(lambda x: ops.nearest_points(shore_lines, x['geometry'])[0], axis=1)
-    df[col+'_nearest_shore_lng'] = df['nearest_shore_point'].apply(lambda x: x.x)
-    df[col+'_nearest_shore_lat'] = df['nearest_shore_point'].apply(lambda x: x.y)
-
-    df = df.drop('nearest_shore_point', axis=1)
-
-    df[col+'_distance_from_shore'] = df.apply(lambda x: haversine((x[col + '_lat'],
-                                                                   x[col + '_lng']),
-                                                                  (x[col+'_nearest_shore_lat'],
-                                                                   x[col+'_nearest_shore_lng'])), axis=1)
 
     return df
 
@@ -122,8 +104,9 @@ def add_dist_from_nearest_port(df, ports_df):
 def get_ww_polygons(import_path=None, db=None):
 
     """
-    :param import_path: path to the ports & waiting areas file location
-    :param db:
+    function that extract ports & waiting areas polygons
+    :param import_path: path to the ports & waiting areas polygons file location
+    :param db: MongoDB object
     :return:
     """
 
@@ -165,6 +148,14 @@ def get_ww_polygons(import_path=None, db=None):
 
 def get_vessels_info(import_path, db, vessels_ids):
 
+    """
+    function that extract vessels info
+    :param import_path: path to the vessels info file location
+    :param db: MongoDB object
+    :param vessels_ids:
+    :return:
+    """
+
     logging.info('get_vessels_info - START')
 
     projection = {'vesselId': 1, "class_calc": 1, "subclass_documented": 1, "built_year": 1,
@@ -204,6 +195,13 @@ def get_vessels_info(import_path, db, vessels_ids):
 
 
 def get_ports_info(import_path, db):
+
+    """
+    function that extract ports info
+    :param import_path: path to the ports info file location
+    :param db: MongoDB object
+    :return:
+    """
 
     logging.info('get_ports_info - START')
 
