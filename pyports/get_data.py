@@ -81,9 +81,10 @@ def find_intersection_with_polygons(df, polygons_df, col_prefix, force_enrichmen
 def is_in_polygon_features(df):
 
     """
-    this function...
-    :param df:
-    :return:
+    this function checks for each activity if it started (firstBlip) and/or ended (lastBlip) inside a ww polygon
+    (boolean). If the activity has not finished yet the lastBlip will be marked as not_ended.
+    :param df: activity dataframe (mooring, anchoring, etc.).
+    :return: the df with 2 new features - firstBlip_in_polygon (boolean), lastBlip_in_polygon (boolean or not_ended).
     """
 
     logging.info('is_in_polygon_features - START')
@@ -106,10 +107,10 @@ def is_in_polygon_features(df):
 def add_dist_from_nearest_port(df, ports_df):
 
     """
-    this function...
-    :param df:
-    :param ports_df:
-    :return:
+    This function finds for each datapoint in the activity dataframe it's distance from the nearest ww defined port.
+    :param df: activity dataframe (mooring, anchoring, etc.).
+    :param ports_df: ww ports dataframe.
+    :return: the df with a new feature - the distance of each point from its nearest ww port.
     """
 
     logging.info('add_dist_from_nearest_port - START')
