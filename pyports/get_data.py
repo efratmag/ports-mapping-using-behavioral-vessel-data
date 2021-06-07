@@ -13,6 +13,11 @@ import json
 import logging
 
 
+class ACTIVITY(object):
+    MOORING = 'mooring'
+    ANCHORING = 'anchoring'
+
+
 def extract_coordinates(df, col='firstBlip'):
 
     """
@@ -114,7 +119,7 @@ def add_dist_from_nearest_port(df, ports_df):
     return df
 
 
-def get_ports_wa_polygons(import_path=None, db=None):
+def get_ww_polygons(import_path=None, db=None):
 
     """
     :param import_path: path to the ports & waiting areas file location
@@ -254,7 +259,7 @@ def get_activity_df(import_path, db, vessels_ids, activity='mooring', nrows=None
         activity_df = extract_coordinates(activity_df, 'lastBlip')
         activity_df = activity_df.drop(['firstBlip', 'lastBlip'], axis=1)
 
-    logging.info(F'get_activity_df ({activity}) - END')
+    logging.info(f'get_activity_df ({activity}) - END')
 
     return activity_df
 
@@ -283,13 +288,13 @@ def main(export_path, vessels_ids=None, import_path=None, use_db=False, debug=Tr
 
     nrows = 10000 if debug else None  # 10K rows per file if debug mode == True
 
-    polygons_df = get_ports_wa_polygons(import_path, db)
+    polygons_df = get_ww_polygons(import_path, db)
     vessels_df = get_vessels_info(import_path, db, vessels_ids)
     ports_df = get_ports_info(import_path, db)
 
-    results_dict = {'anchoring': None, 'mooring': None}
+    results_dict = {ACTIVITY.ANCHORING: None, ACTIVITY.MOORING: None}
 
-    for activity in ['anchoring', 'mooring']:
+    for activity in [ACTIVITY.ANCHORING, ACTIVITY.MOORING]:
 
         activity_df = get_activity_df(import_path, db, vessels_ids, activity, nrows)
 
