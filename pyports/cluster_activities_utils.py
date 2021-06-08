@@ -8,7 +8,10 @@ import os
 import logging
 
 
-def get_data_for_clustering(import_path, activity, debug, sub_area_polygon_fname, blip, only_container_vessels):
+def get_data_for_clustering(import_path, type_of_area_mapped, activity, debug, sub_area_polygon_fname, blip, only_container_vessels):
+
+    # TODO: insert communication with db for other dfs (ports_df, polygons_df, vessels_df)
+    # TODO: add shoreline needed files to ww
 
     logging.info('loading data for clustering - START')
 
@@ -25,11 +28,15 @@ def get_data_for_clustering(import_path, activity, debug, sub_area_polygon_fname
         sub_area_polygon = gpd.read_file(os.path.join(import_path, sub_area_polygon_fname)).loc[0, 'geometry']
         df = df[df.apply(lambda x: Point(x[f'{blip}Blip_lng'], x[f'{blip}Blip_lat']).within(sub_area_polygon), axis=1)]
 
-    if only_container_vessels:
-        df = df[df.vessel_class_new == 'cargo_container']  # take only container vessels
+    if type_of_area_mapped == 'pwa':
+        # if destination based clustering for pwa then include only activities with known destination
         df = df[df.nextPort_name != 'UNKNOWN']  # remove missing values
         df = df.groupby("nextPort_name").filter(lambda x: len(x) > 20)  # take only ports with at least 20 records
         df.reset_index(drop=True, inplace=True)  # reset index
+
+    if only_container_vessels:
+        df = df[df.vessel_class_new == 'cargo_container']  # take only container vessels
+
 
     logging.info('loading ports data...')
     ports_df = gpd.read_file(os.path.join(import_path, 'maps/ports.geojson'))  # WW ports
