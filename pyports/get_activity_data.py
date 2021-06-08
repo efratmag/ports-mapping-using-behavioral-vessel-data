@@ -1,17 +1,23 @@
+"""
+Get activity data from database/ import_path and extract needed features.
+"""
+
 from shapely.geometry import shape, Point
 import os
 import fire
 import pandas as pd
 import numpy as np
 import geopandas as gpd
-from sklearn.neighbors import BallTree
 import pymongo
 from bson import ObjectId
 import json
 import logging
 
 
+# TODO: maybe enter parameter of type_of_area_mapped (ports vs pwa) to create df specific for each mapping
+
 class ACTIVITY(object):
+    """ constant parameter for activity type"""
     MOORING = 'mooring'
     ANCHORING = 'anchoring'
 
@@ -43,12 +49,12 @@ def extract_coordinates(df, col='firstBlip'):
 def find_intersection_with_polygons(df, polygons_df, col_prefix, force_enrichment=True):
 
     """
-    this function will calculate the intersections between points activities and ww polygons
+    this function will find for each activity point its ww polygon id and type
     :param df: activity df
     :param polygons_df: ww polygons df
     :param col_prefix: "firstBlip" / "lastBlip"
     :param force_enrichment: if True, will recreate column, even if exists
-    :return:
+    :return: activity df with additional columns for ww polygon id and type
     """
 
     logging.info(f'converting to Point - {col_prefix}...')
@@ -78,55 +84,6 @@ def find_intersection_with_polygons(df, polygons_df, col_prefix, force_enrichmen
     return df
 
 
-def is_in_polygon_features(df):
-
-    """
-    this function checks for each activity if it started (firstBlip) and/or ended (lastBlip) inside a ww polygon
-    (boolean). If the activity has not finished yet the lastBlip will be marked as not_ended.
-    :param df: activity dataframe (mooring, anchoring, etc.).
-    :return: the df with 2 new features - firstBlip_in_polygon (boolean), lastBlip_in_polygon (boolean or not_ended).
-    """
-
-    logging.info('is_in_polygon_features - START')
-
-    df["firstBlip_in_polygon"] = df["firstBlip_polygon_id"].notna()
-
-    conditions = [
-        (df["firstBlip_in_polygon"] == True) & (df['lastBlip_polygon_id'].isna() == True),
-        (df["firstBlip_in_polygon"] == False) & (df['lastBlip_polygon_id'].isna() == True),
-        (df["lastBlip_polygon_id"].isna() == False)
-    ]
-    choices = ["not_ended", "False", "True"]
-    df["lastBlip_in_polygon"] = np.select(conditions, choices)
-
-    logging.info('is_in_polygon_features - END')
-
-    return df
-
-
-def add_dist_from_nearest_port(df, ports_df):
-
-    """
-    This function finds for each datapoint in the activity dataframe it's distance from the nearest ww defined port.
-    :param df: activity dataframe (mooring, anchoring, etc.).
-    :param ports_df: ww ports dataframe.
-    :return: the df with a new feature - the distance of each point from its nearest ww port.
-    """
-
-    logging.info('add_dist_from_nearest_port - START')
-
-    ports_gdf = gpd.GeoDataFrame(
-        ports_df, geometry=gpd.points_from_xy(ports_df.lng, ports_df.lat))
-
-    tree = BallTree(ports_gdf[['lat', 'lng']].values, leaf_size=2)
-
-    df['distance_nearest_port'], _ = tree.query(df[['firstBlip_lat', 'firstBlip_lng']].values, k=1)
-
-    logging.info('add_dist_from_nearest_port - END')
-
-    return df
-
-
 def get_ww_polygons(import_path=None, db=None):
 
     """
@@ -137,7 +94,7 @@ def get_ww_polygons(import_path=None, db=None):
     """
 
     logging.info('get_ports_wa_polygons - START')
-
+    # TODO: move to new file (get_data)
     # TODO: fill in mongo query
     if not import_path:
         col = db["polygons"]
@@ -331,7 +288,6 @@ def main(export_path, vessels_ids=None, import_path=None, use_db=False, debug=Tr
 
     polygons_df = get_ww_polygons(import_path, db)
     vessels_df = get_vessels_info(import_path, db, vessels_ids)
-    ports_df = get_ports_info(import_path, db)
 
     results_dict = {ACTIVITY.ANCHORING: None, ACTIVITY.MOORING: None}
 
@@ -341,9 +297,6 @@ def main(export_path, vessels_ids=None, import_path=None, use_db=False, debug=Tr
 
         activity_df = find_intersection_with_polygons(activity_df, polygons_df, 'firstBlip')
         activity_df = find_intersection_with_polygons(activity_df, polygons_df, 'lastBlip')
-        activity_df = add_dist_from_nearest_port(activity_df, ports_df)
-
-        activity_df = is_in_polygon_features(activity_df)
 
         logging.info(f'merging vessels data...')
         activity_df = activity_df.merge(vessels_df, on='vesselId', how='left')
