@@ -75,7 +75,7 @@ def get_activity_df(import_path: str, db: pymongo.MongoClient, vessels_ids: List
 
     """
     this function will load the activity data and if needed, will extract features
-    :param import_path:
+    :param import_path: path to location of activity file: mooring.csv.gz / anchoring.csv.gz
     :param db: MongoDB object
     :param vessels_ids: filter data by specific vessels_ids
     :param activity: "mooring" / "anchoring"
@@ -124,7 +124,7 @@ def main(export_path: str, activity_type: ACTIVITY = ACTIVITY.MOORING, vessels_i
     This code will get all relevant data and prepare it for clustering
     :param export_path: path in which the output will be exported
     :param activity_type: "mooring" / "anchoring"
-    :param import_path: path to directory with all relevant files
+    :param import_path: path to directory with all relevant files: polygons.json, vessels.json, anchoring.csv.gz, mooring.csv.gz
     :param vessels_ids: comma-separated list of vessels ids for mongo query
     :param use_db: if True, will use mongo db to query data
     :param debug: if True, only a first 10K rows of each file will be processed for each activity file
