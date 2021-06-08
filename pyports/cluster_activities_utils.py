@@ -7,6 +7,8 @@ import datetime
 import os
 import logging
 
+from pyports.get_data import VesselType
+
 
 def get_data_for_clustering(import_path, type_of_area_mapped, activity, debug, sub_area_polygon_fname, blip, only_container_vessels):
 
@@ -35,8 +37,7 @@ def get_data_for_clustering(import_path, type_of_area_mapped, activity, debug, s
         df.reset_index(drop=True, inplace=True)  # reset index
 
     if only_container_vessels:
-        df = df[df.vessel_class_new == 'cargo_container']  # take only container vessels
-
+        df = df[df.vessel_class_new == VesselType.CARGO_CONTAINER.value]  # take only container vessels
 
     logging.info('loading ports data...')
     ports_df = gpd.read_file(os.path.join(import_path, 'maps/ports.geojson'))  # WW ports
