@@ -74,7 +74,7 @@ def get_activity_df(import_path: str, db: pymongo.MongoClient, vessels_ids: List
                     activity: ACTIVITY = ACTIVITY.MOORING, debug: bool = False) -> pd.DataFrame:
 
     """
-    this function will load the activity data and if needed, will extract features
+    this function will load the activity data
     :param import_path: path to location of activity file: mooring.csv.gz / anchoring.csv.gz
     :param db: MongoDB object
     :param vessels_ids: filter data by specific vessels_ids
