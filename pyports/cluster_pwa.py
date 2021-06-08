@@ -16,7 +16,7 @@ type_of_area_mapped = 'pwa'
 
 def main(import_path, export_path, activity='anchoring', blip='first', only_container_vessels=True,
          hdbscan_min_cluster_size=20, hdbscan_min_samples=10, hdbscan_distance_metric='haversine',
-         polygon_type='alpha_shape', polygon_alpha=4, sub_area_polygon_fname=None, optimize_polygon=False,
+         polygon_type='alpha_shape', polygon_alpha=4,  optimize_polygon=False, sub_area_polygon_fname=None,
          save_files=False, debug=False
          ):
 
@@ -31,8 +31,8 @@ def main(import_path, export_path, activity='anchoring', blip='first', only_cont
     :param hdbscan_distance_metric: hdbscan distance_metric hyper parameter.
     :param polygon_type: 'alpha_shape' or 'convexhull'.
     :param polygon_alpha: parameter for 'alpha_shape'- degree of polygon segregation.
-    :param sub_area_polygon_fname: optional- add file name for sub area of interest.
     :param optimize_polygon: if True, will apply optimize_polygon.
+    :param sub_area_polygon_fname: optional- add file name for sub area of interest.
     :param save_files: boolean- whether to save results and model to output_path.
     :param debug: take only subset of data for testing code.
 
@@ -40,7 +40,7 @@ def main(import_path, export_path, activity='anchoring', blip='first', only_cont
 
     # loading data
     df, ports_df, polygons_df, main_land, shoreline_polygon = \
-        get_data_for_clustering(import_path, activity, debug,
+        get_data_for_clustering(import_path, type_of_area_mapped, activity, debug,
                                 sub_area_polygon_fname, blip, only_container_vessels)
 
     locations = df[[f'{blip}Blip_lat', f'{blip}Blip_lng']].to_numpy()  # points for clustering
@@ -61,7 +61,7 @@ def main(import_path, export_path, activity='anchoring', blip='first', only_cont
                                         metric=hdbscan_distance_metric)
             clusterer.fit(locs)
             df.loc[idxs, 'cluster_probability'] = clusterer.probabilities_
-
+            # TODO: maybe insted, we can give labels as portID_cluster_label
             if i == 0:
                 df.loc[idxs, 'cluster_label'] = clusterer.labels_
                 num_clusters = clusterer.labels_.max() + 1
