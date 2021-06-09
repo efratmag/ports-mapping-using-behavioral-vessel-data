@@ -9,12 +9,13 @@ min_samples:10. Lastly create polygons from these clusters and extract their fea
 import hdbscan
 import fire
 from pyports.cluster_activities_utils import *
+from pyports.generate_activity_data import ACTIVITY
 
 
 type_of_area_mapped = 'pwa'
 
 
-def main(import_path, export_path, activity='anchoring', blip='first', only_container_vessels=True,
+def main(import_path, export_path, activity=ACTIVITY.ANCHORING, blip='first', only_container_vessels=True,
          hdbscan_min_cluster_size=20, hdbscan_min_samples=10, hdbscan_distance_metric='haversine',
          polygon_type='alpha_shape', polygon_alpha=4,  optimize_polygon=False, sub_area_polygon_fname=None,
          save_files=False, debug=False
