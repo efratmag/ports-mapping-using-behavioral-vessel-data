@@ -1,20 +1,16 @@
 import os
-from enum import Enum
 import pandas as pd
 import numpy as np
 import json
 import logging
 from bson import ObjectId
-from shapely.geometry import shape
+from shapely.geometry import shape, MultiPolygon
 import geopandas as gpd
 import pymongo
+from typing import List, Tuple
 
-
-class VesselType(Enum):
-    """constant parameter for vessels type"""
-    CARGO_CONTAINER = "cargo_container"
-    CARGO_OTHER = "cargo_other"
-    TANKER = "tanker"
+from pyports.constants import VesselType
+from pyports.geo_utils import merge_polygons
 
 
 def get_ww_polygons(import_path: str, db: pymongo.MongoClient = None) -> gpd.GeoDataFrame:
@@ -60,7 +56,7 @@ def get_ww_polygons(import_path: str, db: pymongo.MongoClient = None) -> gpd.Geo
     return polygons_df
 
 
-def get_vessels_info(import_path: str, db: pymongo.MongoClient, vessels_ids: list = None) -> pd.DataFrame:
+def get_vessels_info(import_path: str, db: pymongo.MongoClient = None, vessels_ids: List[str] = None) -> pd.DataFrame:
 
     """
     function that extract vessels info
@@ -106,3 +102,64 @@ def get_vessels_info(import_path: str, db: pymongo.MongoClient, vessels_ids: lis
     logging.info('vessels data extracted')
 
     return vessels_df
+
+
+def get_ports_info(import_path: str, db: pymongo.MongoClient = None) -> pd.DataFrame:
+
+    """
+    function that extract ports info
+    :param import_path: path to the ports info file location
+    :param db: MongoDB object
+    :return:
+    """
+
+    # TODO: fill in mongo query
+    if not import_path:
+        col = db["ports"]
+        col = col.find({}, {'_id': 1, 'country': 1, 'name': 1, 'center_coordinates.0': 1, 'center_coordinates.1': 1})
+        ports_df = pd.DataFrame(list(col)).drop(['_id'], axis=1)
+        ports_df = ports_df.rename(columns={'center_coordinates.0': 'lng', 'center_coordinates.1': 'lat'})
+
+    else:
+        ports_file_path = os.path.join(import_path, 'ports.json')
+        with open(ports_file_path, 'r') as portsfile:
+
+            ports_df = json.load(portsfile)
+        ports_df = pd.DataFrame.from_dict(ports_df, orient='index')
+        ports_df = ports_df[['country', 'name', 'center_coordinates']]
+
+        ports_df['lat'] = ports_df.center_coordinates.map(lambda x: x[1])
+        ports_df['lng'] = ports_df.center_coordinates.map(lambda x: x[0])
+
+        ports_df = ports_df.reset_index().rename(columns={'index': 'PortId'}).drop('center_coordinates', axis=1)
+
+        logging.info('ports info extracted')
+
+    return ports_df
+
+
+def get_shoreline_layer(import_path: str, db: pymongo.MongoClient = None) -> Tuple[MultiPolygon, MultiPolygon]:
+
+    """
+    function that loads shoreline layer and merge it into one multipolygon.
+    in addition, it will return a multipolygon of the big continents
+    :param import_path: path to the shoreline layer file location
+    :param db: MongoDB object
+    :return:
+    """
+    # TODO: fill in mongo query
+
+    if not import_path:
+        col = db["shoreline"]
+        col = col.find({})
+        shoreline_df = gpd.GeoDataFrame(list(col))
+
+    else:
+        shoreline_df = gpd.read_file(os.path.join(import_path, 'shoreline_layer.geojson'))  # shoreline layer
+
+    main_land = merge_polygons(shoreline_df[:4])  # create multipolygon of the big continents
+    shoreline_polygon = merge_polygons(shoreline_df)  # merging shoreline_df to one multipolygon
+
+    logging.info('shoreline layer extracted')
+
+    return main_land, shoreline_polygon
