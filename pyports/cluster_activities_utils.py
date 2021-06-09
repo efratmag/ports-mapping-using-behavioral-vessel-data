@@ -1,28 +1,49 @@
+from pyports.constants import VesselType
 from pyports.geo_utils import *
 from tqdm import tqdm
 import pandas as pd
 import geopandas as gpd
+import pymongo
 from shapely.geometry import Point
 import datetime
 import os
 import logging
 
-from pyports.get_metadata import VesselType
+from pyports.get_metadata import get_ww_polygons, get_ports_info, get_shoreline_layer
+from pyports.generate_activity_data import ACTIVITY
 
 
-def get_data_for_clustering(import_path, type_of_area_mapped, activity, debug, sub_area_polygon_fname, blip, only_container_vessels):
+def get_data_for_clustering(import_path, type_of_area_mapped, activity, debug, sub_area_polygon_fname, blip,
+                            only_container_vessels, use_db=False):
 
-    # TODO: insert communication with db for other dfs (ports_df, polygons_df, vessels_df)
+    """
+    # TODO: complete documentation
+    this function will get all needed data for clustering
+    :param import_path: path to all re
+    :param type_of_area_mapped: "ports" / "pwa" (ports waiting areas).
+    :param activity: "mooring" / "anchoring"
+    :param debug: if True, only a first 10K rows of each file will be processed for the activity file
+    :param sub_area_polygon_fname: path to geojson file with polygon for area sub-setting
+    :param blip: "first" / "last"
+    :param type_of_area_mapped: boolean, only relevant if type_of_area_mapped=='pwa'
+    :param use_db: if True, will use mongo db to query data
+    :return:
+    """
+
     # TODO: add shoreline needed files to ww
+    # TODO: update with winward querying methods
+    db = None
+    if use_db:
+        myclient = pymongo.MongoClient("<your connection string here>")  # initiate MongoClient for mongo queries
+        db = myclient["<DB name here>"]
 
-    logging.info('loading data for clustering - START')
+    activity = activity.value if isinstance(activity, ACTIVITY) else activity  # parse activity value
 
-    df_for_clustering_fname = f'features/df_for_clustering_{activity}.csv'
+    df_for_clustering_fname = f'df_for_clustering_{activity}.csv.gz'
 
     nrows = 10000 if debug else None  # will load first 10K rows if debug == True
 
     logging.info('loading activity data...')
-
     df = pd.read_csv(os.path.join(import_path, df_for_clustering_fname), low_memory=False, nrows=nrows)
 
     if sub_area_polygon_fname:  # take only area of the data, e.g. 'maps/mediterranean.geojson'
@@ -39,21 +60,10 @@ def get_data_for_clustering(import_path, type_of_area_mapped, activity, debug, s
     if only_container_vessels:
         df = df[df.vessel_class_new == VesselType.CARGO_CONTAINER.value]  # take only container vessels
 
-    logging.info('loading ports data...')
-    ports_df = gpd.read_file(os.path.join(import_path, 'maps/ports.geojson'))  # WW ports
-    ports_df.drop_duplicates(subset='name', inplace=True)
-
-    logging.info('loading polygons data...')
-    polygons_df = gpd.read_file(os.path.join(import_path, 'maps/polygons.geojson'),
-                                usecols=['_id', 'title', 'areaType', 'geometry'])  # WW polygons
+    ports_df = get_ports_info(import_path, db)  # todo add mongo db
+    polygons_df = get_ww_polygons(import_path, db)  # WW polygons
+    main_land, shoreline_polygon = get_shoreline_layer(import_path, db)
     # TODO: find out why still get error: WARNING:fiona.ogrext:Skipping field otherNames: invalid type 5
-
-    logging.info('loading shoreline data...')
-    shoreline_df = gpd.read_file(os.path.join(import_path, 'maps/shoreline_layer.geojson'))  # shoreline layer
-    main_land = merge_polygons(shoreline_df[:4])  # create multipolygon of the big continents
-    shoreline_polygon = merge_polygons(shoreline_df)  # merging shoreline_df to one multipolygon
-
-    logging.info('loading data for clustering - END')
 
     return df, ports_df, polygons_df, main_land, shoreline_polygon
 
