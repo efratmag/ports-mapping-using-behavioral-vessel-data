@@ -1,2 +1,2 @@
-import pyports.get_activity_data
+import pyports.generate_activity_data
 import pyports.cluster_pwa
