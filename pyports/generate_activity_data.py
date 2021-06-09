@@ -3,7 +3,6 @@ Get activity data from database/ import_path and extract needed features.
 """
 
 from shapely.geometry import Point
-from enum import Enum
 import os
 import fire
 import pandas as pd
@@ -13,13 +12,8 @@ from bson import ObjectId
 import logging
 from typing import List
 
+from pyports.constants import ACTIVITY
 from pyports.get_metadata import get_vessels_info, get_ww_polygons
-
-
-class ACTIVITY(Enum):
-    """constant parameter for activity type"""
-    MOORING = 'mooring'
-    ANCHORING = 'anchoring'
 
 
 def extract_coordinates(df: pd.DataFrame, blip: str) -> pd.DataFrame:
@@ -31,7 +25,7 @@ def extract_coordinates(df: pd.DataFrame, blip: str) -> pd.DataFrame:
     :return: df with lat lng coordinates
     """
 
-    coordinates_df = df[blip].dropna().apply(eval).apply(lambda x: x['geometry']['coordinates']).apply(pd.Series)
+    coordinates_df = df[blip].dropna().apply(eval).apply(lambda x: x['geometry']['coordinates']).apply(pd.Series) # extract geometry from nested dict
     coordinates_df = coordinates_df.rename(columns={0: blip + '_lng', 1: blip + '_lat'})
 
     df = df.merge(coordinates_df, left_index=True, right_index=True, how='left')
@@ -55,17 +49,17 @@ def find_intersection_with_polygons(df: pd.DataFrame, polygons_df: gpd.GeoDataFr
     df = gpd.GeoDataFrame(df)
 
     df = gpd.sjoin(df, polygons_df[['polygon_id', 'polygon_area_type', 'geometry'
-                                    ]], how='left').drop('index_right', axis=1)  # spatial join
+                                    ]], how='left').drop('index_right', axis=1)  # spatial join (activity points & ww polygons)
 
-    df['polygon_id'], df['polygon_area_type'] = df['polygon_id'].astype(str), df['polygon_area_type'].astype(str)
+    df['polygon_id'], df['polygon_area_type'] = df['polygon_id'].astype(str), df['polygon_area_type'].astype(str) # convert to string
 
-    merged_polygons = df.groupby('_id', as_index=False).agg({'polygon_id': ', '.join,
+    merged_polygons = df.groupby('_id', as_index=False).agg({'polygon_id': ', '.join,  # create df with aggregated to polygons_ids & types
                                                              'polygon_area_type': ', '.join}).replace({'nan': None})
 
-    df = df.drop_duplicates('_id').drop(['polygon_id', 'polygon_area_type', 'geometry'], axis=1)
-    df = df.merge(merged_polygons, on='_id')
+    df = df.drop_duplicates('_id').drop(['polygon_id', 'polygon_area_type', 'geometry'], axis=1)  # drop duplicate rows caused by sjoin
+    df = df.merge(merged_polygons, on='_id')  # merge polygons intersections
     df = df.rename(columns={'polygon_id': blip + '_polygon_id',
-                            'polygon_area_type': blip + '_polygon_area_type'})
+                            'polygon_area_type': blip + '_polygon_area_type'})  # rename in respect to blip
 
     return df
 
@@ -117,48 +111,50 @@ def get_activity_df(import_path: str, db: pymongo.MongoClient, vessels_ids: List
     return activity_df
 
 
-def main(export_path: str, activity_type: ACTIVITY = ACTIVITY.MOORING, vessels_ids: str = None,
+def main(export_path: str, activity: ACTIVITY = ACTIVITY.MOORING, vessels_ids: str = None,
          import_path: str = None, use_db: bool = None, debug: bool = True):
 
     """
     This code will get all relevant data and prepare it for clustering
     :param export_path: path in which the output will be exported
-    :param activity_type: "mooring" / "anchoring"
+    :param activity: "mooring" / "anchoring"
     :param import_path: path to directory with all relevant files: polygons.json, vessels.json, anchoring.csv.gz, mooring.csv.gz
-    :param vessels_ids: comma-separated list of vessels ids for mongo query
+    :param vessels_ids: comma-separated string of vessels ids for mongo query
     :param use_db: if True, will use mongo db to query data
-    :param debug: if True, only a first 10K rows of each file will be processed for each activity file
+    :param debug: if True, only a first 10K rows of each file will be processed for the activity file
     :return:
     """
 
+    activity = activity.value if isinstance(activity, ACTIVITY) else activity  # parse activity value
+
+    assert activity in ["mooring", "anchoring"], 'activity must be "mooring" or "anchoring"'
     assert use_db or import_path, "use_db or import_path wasn't passed"
 
     if vessels_ids:
-        vessels_ids = vessels_ids.split(',')
+        vessels_ids = vessels_ids.split(',')  # split comma-separated string to list
 
-    # TODO: update with winward db methods
+    # TODO: update with winward querying methods
     db = None
     if use_db:
         myclient = pymongo.MongoClient("<your connection string here>")  # initiate MongoClient for mongo queries
         db = myclient["<DB name here>"]
 
-    polygons_df = get_ww_polygons(import_path, db)
-    vessels_df = get_vessels_info(import_path, db, vessels_ids)
+    polygons_df = get_ww_polygons(import_path, db)  # WW polygons
+    vessels_df = get_vessels_info(import_path, db, vessels_ids)  # WW vessels info
 
-    activity_df = get_activity_df(import_path, db, vessels_ids, activity_type, debug)
+    activity_df = get_activity_df(import_path, db, vessels_ids, activity, debug)  # vessels activity
 
-    activity_df = find_intersection_with_polygons(activity_df, polygons_df, 'firstBlip')
-    activity_df = find_intersection_with_polygons(activity_df, polygons_df, 'lastBlip')
+    activity_df = find_intersection_with_polygons(activity_df, polygons_df, 'firstBlip')  # enrich activity_df with polygons info
+    activity_df = find_intersection_with_polygons(activity_df, polygons_df, 'lastBlip') # enrich activity_df with polygons info
 
-    activity_df = activity_df.merge(vessels_df, on='vesselId', how='left')
+    activity_df = activity_df.merge(vessels_df, on='vesselId', how='left')  # enrich activity_df with vessels info
 
-    activity_df = activity_df.merge(polygons_df.set_index('polygon_id').drop('geometry', axis=1),
+    activity_df = activity_df.merge(polygons_df.set_index('polygon_id').drop('geometry', axis=1), # enrich with activity_df df with nextPort info
                                     left_on='nextPort', right_index=True, how='left').rename(
         columns={'name': 'nextPort_name'})
-
     activity_df.nextPort_name.fillna('UNKNOWN', inplace=True)
 
-    activity_df.to_csv(os.path.join(export_path, f'{activity_type.value}.csv.gz'), index=False, compression='gzip')
+    activity_df.to_csv(os.path.join(export_path, f'{activity.value}.csv.gz'), index=False, compression='gzip')
 
     return activity_df
 
