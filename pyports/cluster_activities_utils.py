@@ -7,7 +7,7 @@ import datetime
 import os
 import logging
 
-from pyports.get_data import VesselType
+from pyports.get_metadata import VesselType
 
 
 def get_data_for_clustering(import_path, type_of_area_mapped, activity, debug, sub_area_polygon_fname, blip, only_container_vessels):
