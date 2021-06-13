@@ -22,6 +22,7 @@ BRNG_S_W = 4.18879  # 240 degrees converted to radians.
 METERS_IN_DEG = 2 * math.pi * 6371000.0 / 360
 
 UNIT_RESOLVER = {'sqmi': 1609.34, 'sqkm': 1000.0}
+AREA_TYPE_RESOLVER = {'pwa': 'PortWaitingArea', 'ports': 'Port'}
 
 
 def haversine(lonlat1, lonlat2):
@@ -155,10 +156,7 @@ def polygon_intersection(clust_polygon, ww_polygons, type_of_area_mapped):
     :return: geopandas dataframe with extra feature of intersection of polygons with windward's polygons
     """
     # choose relevant type of polygons
-    if type_of_area_mapped == 'pwa':
-        ww_polygons = ww_polygons[ww_polygons.areaType == 'PortWaitingArea']
-    elif type_of_area_mapped == 'ports':
-        ww_polygons = ww_polygons[ww_polygons.areaType == 'Port']
+    ww_polygons = ww_polygons[ww_polygons.areaType == AREA_TYPE_RESOLVER[type_of_area_mapped]]
 
     intersection_value = 0
     temp_df = ww_polygons[ww_polygons.intersects(clust_polygon)]
