@@ -49,7 +49,7 @@ def find_intersection_with_polygons(df: pd.DataFrame, polygons_df: gpd.GeoDataFr
     df = gpd.GeoDataFrame(df)
 
     df = gpd.sjoin(df, polygons_df[['polygon_id', 'polygon_area_type', 'geometry'
-                                    ]], how='left').drop('index_right', axis=1)  # spatial join (activity points & ww polygons)
+                                    ]], how='left').drop('index_right', axis=1)  # spatial join (left: activity points & right: ww polygons)
 
     df['polygon_id'], df['polygon_area_type'] = df['polygon_id'].astype(str), df['polygon_area_type'].astype(str) # convert to string
 
