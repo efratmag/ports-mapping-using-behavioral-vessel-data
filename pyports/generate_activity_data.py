@@ -36,7 +36,7 @@ def extract_coordinates(df: pd.DataFrame, blip: str) -> pd.DataFrame:
 def find_intersection_with_polygons(df: pd.DataFrame, polygons_df: gpd.GeoDataFrame, blip: str) -> gpd.GeoDataFrame:
 
     """
-    this function will find for each activity point its ww polygon id and type
+    this function will find for each activity point its ww polygon id and type (if an intersection will be found)
     :param df: activity df
     :param polygons_df: ww polygons df
     :param blip: "firstBlip" / "lastBlip"
