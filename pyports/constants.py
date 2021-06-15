@@ -12,6 +12,7 @@ class VesselType(Enum):
     CARGO_CONTAINER = "cargo_container"
     CARGO_OTHER = "cargo_other"
     TANKER = "tanker"
+    OTHER = "other"
 
 
 class BLIP(Enum):
