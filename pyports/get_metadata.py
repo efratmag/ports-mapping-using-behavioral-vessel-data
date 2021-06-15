@@ -94,7 +94,7 @@ def get_vessels_info(import_path: str, db: pymongo.MongoClient = None, vessels_i
 
     choices = [VesselType.CARGO_CONTAINER.value, VesselType.CARGO_OTHER.value, VesselType.TANKER.value]
     vessels_df["class_new"] = np.select(conditions, choices)
-    vessels_df["class_new"] = vessels_df["class_new"].replace({'0': 'other'})
+    vessels_df["class_new"] = vessels_df["class_new"].replace({'0': VesselType.OTHER.value})
 
     vessels_df = vessels_df.add_prefix('vessel_')
     vessels_df = vessels_df.reset_index().rename(columns={'index': 'vesselId'})
