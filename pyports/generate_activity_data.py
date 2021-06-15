@@ -10,7 +10,7 @@ import geopandas as gpd
 import pymongo
 from bson import ObjectId
 import logging
-from typing import List
+from typing import List, Union
 
 from pyports.constants import ACTIVITY
 from pyports.get_metadata import get_vessels_info, get_ww_polygons
@@ -44,7 +44,7 @@ def find_intersection_with_polygons(df: pd.DataFrame, polygons_df: gpd.GeoDataFr
     """
 
     df['geometry'] = df.apply(lambda x: Point(x[blip + '_lng'], x[blip + '_lat']) if not pd.isna(
-        x[blip + '_lat']) else None, axis=1)  # convert lat,lng to Point object
+        x[blip + '_lat']) else None, axis=1)  # convert lat,lng to Point object # todo create new series
 
     df = gpd.GeoDataFrame(df)
 
@@ -65,7 +65,7 @@ def find_intersection_with_polygons(df: pd.DataFrame, polygons_df: gpd.GeoDataFr
 
 
 def get_activity_df(import_path: str, db: pymongo.MongoClient, vessels_ids: List[str] = None,
-                    activity: ACTIVITY = ACTIVITY.MOORING, debug: bool = False) -> pd.DataFrame:
+                    activity: ACTIVITY = ACTIVITY.MOORING.value, debug: bool = False) -> pd.DataFrame:
 
     """
     this function will load the activity data
@@ -86,7 +86,7 @@ def get_activity_df(import_path: str, db: pymongo.MongoClient, vessels_ids: List
                               'firstBlip.geometry.coordinates.0': 1, 'firstBlip.geometry.coordinates.1': 1,
                               'lastBlip.geometry.coordinates.0': 1, 'lastBlip.geometry.coordinates.1': 1}
 
-        col = db[activity.value]
+        col = db[activity]
         col = col.find(query, columns_projection).limit(nrows) if nrows else col.find(query, columns_projection)
         activity_df = pd.DataFrame(list(col))
         activity_df = activity_df.rename(columns={'firstBlip.geometry.coordinates.0': 'firstBlip_lng',
@@ -96,7 +96,7 @@ def get_activity_df(import_path: str, db: pymongo.MongoClient, vessels_ids: List
 
     else:
         cols = ['_id', 'firstBlip', 'lastBlip', 'vesselId', 'startDate', 'endDate', 'duration', 'nextPort']
-        activity_file_path = os.path.join(import_path, f'{activity.value}.csv.gz')
+        activity_file_path = os.path.join(import_path, f'{activity}.csv.gz')
         activity_df = pd.read_csv(activity_file_path, nrows=nrows, usecols=cols)
 
         if vessels_ids:
@@ -106,13 +106,13 @@ def get_activity_df(import_path: str, db: pymongo.MongoClient, vessels_ids: List
         activity_df = extract_coordinates(activity_df, 'lastBlip')
         activity_df = activity_df.drop(['firstBlip', 'lastBlip'], axis=1)  # drop nested locations columns
 
-    logging.info(f'{activity.value} data extracted')
+    logging.info(f'{activity} data extracted')
 
     return activity_df
 
 
-def main(export_path: str, activity: ACTIVITY = ACTIVITY.MOORING, vessels_ids: str = None,
-         import_path: str = None, use_db: bool = None, debug: bool = True):
+def main(export_path: str, activity: Union[ACTIVITY, str] = ACTIVITY.MOORING, vessels_ids: str = None,
+         import_path: str = None, use_db: bool = None, debug: bool = False):
 
     """
     This code will get all relevant data and prepare it for clustering
@@ -154,7 +154,7 @@ def main(export_path: str, activity: ACTIVITY = ACTIVITY.MOORING, vessels_ids: s
         columns={'name': 'nextPort_name'})
     activity_df.nextPort_name.fillna('UNKNOWN', inplace=True)
 
-    activity_df.to_csv(os.path.join(export_path, f'{activity.value}.csv.gz'), index=False, compression='gzip')
+    activity_df.to_csv(os.path.join(export_path, f'{activity}.csv.gz'), index=False, compression='gzip')
 
     return activity_df
 
