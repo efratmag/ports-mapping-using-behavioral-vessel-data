@@ -44,7 +44,7 @@ def find_intersection_with_polygons(df: pd.DataFrame, polygons_df: gpd.GeoDataFr
     """
 
     df['geometry'] = df.apply(lambda x: Point(x[blip + '_lng'], x[blip + '_lat']) if not pd.isna(
-        x[blip + '_lat']) else None, axis=1)  # convert lat,lng to Point object # todo create new series
+        x[blip + '_lat']) else None, axis=1)  # convert lat,lng to Point object #
 
     df = gpd.GeoDataFrame(df)
 
