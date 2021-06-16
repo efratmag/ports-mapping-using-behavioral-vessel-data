@@ -9,23 +9,23 @@ min_samples:10. Lastly create polygons from these clusters and extract their fea
 import hdbscan
 import fire
 from pyports.cluster_activities_utils import *
-from pyports.generate_activity_data import ACTIVITY
+from pyports.constants import ACTIVITY, AreaType
+from typing import Union
 
 
-type_of_area_mapped = 'pwa'
-
-
-def main(import_path, export_path, activity=ACTIVITY.ANCHORING, blip='first', only_container_vessels=True,
-         hdbscan_min_cluster_size=20, hdbscan_min_samples=10, hdbscan_distance_metric='haversine',
-         polygon_type='alpha_shape', polygon_alpha=4,  optimize_polygon=False, sub_area_polygon_fname=None,
-         save_files=False, debug=False
-         ):
+def main(import_path: str, export_path: str, activity: Union[ACTIVITY, str] = ACTIVITY.ANCHORING,
+         blip: str = 'first', type_of_area_mapped: Union[AreaType, str] = AreaType.PORTS_WAITING_AREA,
+         only_container_vessels: bool = True, hdbscan_min_cluster_size: int = 20, hdbscan_min_samples: int = 10,
+         hdbscan_distance_metric: int = 'haversine', polygon_type: str = 'alpha_shape', polygon_alpha: int = 4,
+         optimize_polygon: bool = False, sub_area_polygon_fname: str = None, save_files: bool = False,
+         debug: bool = False):
 
     """
     :param import_path: path to all used files.
     :param export_path: path to save dataframe.
     :param activity: default: 'anchoring' (for ports waiting areas).
     :param blip: 'first' or 'last'.
+    :param type_of_area_mapped: ports waiting areas
     :param only_container_vessels: use only container vessels for pwa mapping. default: True.
     :param hdbscan_min_cluster_size: hdbscan min_cluster_size hyper parameter (20 for anchoring).
     :param hdbscan_min_samples: hdbscan min_samples hyper parameter (10 for anchoring).
