@@ -8,7 +8,7 @@ from shapely.geometry import Point
 import datetime
 import os
 import logging
-from typing import Union
+from typing import Union, Tuple
 
 from pyports.get_metadata import get_ww_polygons, get_ports_info, get_shoreline_layer
 from pyports.constants import ACTIVITY, AreaType
@@ -16,21 +16,22 @@ from pyports.constants import ACTIVITY, AreaType
 
 def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaType, str], activity: Union[ACTIVITY, str],
                             blip: str, only_container_vessels: bool, sub_area_polygon_fname: str = None,
-                            use_db: bool = False, debug: bool = False) -> pd.DataFrame:
-    # TODO: find out how to state several otputs
+                            use_db: bool = False, debug: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame,
+                                                                                pd.DataFrame, MultiPolygon,
+                                                                                MultiPolygon]:
 
     """
-    # TODO: complete documentation
-    this function will get all needed data for clustering
-    :param import_path: path to all re
+    this function will get all needed data for clustering.
+    :param import_path:path to all used files.
     :param type_of_area_mapped: "ports" / "pwa" (ports waiting areas).
-    :param activity: "mooring" / "anchoring"
-    :param blip: "first" / "last"
+    :param activity: "mooring" / "anchoring".
+    :param blip: "first" / "last".
     :param only_container_vessels: use only container vessels for pwa mapping.
-    :param sub_area_polygon_fname: path to geojson file with polygon for area sub-setting
-    :param use_db: if True, will use mongo db to query data
-    :param debug: if True, only a first 10K rows of each file will be processed for the activity file
-    :return:
+    :param sub_area_polygon_fname: path to geojson file with polygon for area sub-setting.
+    :param use_db: if True, will use mongo db to query data.
+    :param debug: if True, only a first 10K rows of each file will be processed for the activity file.
+    :return: activity dataframe, ports dataframe, polygons dataframe, multipolygon of the main continents, multipolygon
+     of shoreline
     """
 
     # TODO: add shoreline needed files to ww
