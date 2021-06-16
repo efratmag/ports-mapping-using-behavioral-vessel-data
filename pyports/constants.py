@@ -22,3 +22,10 @@ class BLIP(Enum):
     FirstBlipLng = ''
     LastBlipLat = ''
     LastBlipLng = ''
+
+
+class AreaType(Enum):
+    """constant parameter for type of area mapped"""
+    PORTS_WAITING_AREA = 'pwa'
+    PORTS = 'ports'
+
