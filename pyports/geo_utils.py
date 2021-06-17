@@ -1,6 +1,6 @@
 import math
 import pandas as pd
-from shapely.geometry import shape, MultiLineString, Polygon, MultiPolygon, MultiPoint
+from shapely.geometry import shape, MultiLineString, Polygon, MultiPolygon, MultiPoint, Point
 from scipy.spatial import Delaunay
 import numpy as np
 import geopandas as gpd
@@ -10,9 +10,9 @@ from sklearn.metrics.pairwise import haversine_distances
 import logging
 from tqdm import tqdm
 from kneed import KneeLocator
+from typing import Tuple
 
-# TODO: verify all lat lngs are in right order
-
+# TODO: maybe move to constants.py
 R = 6378.1  # Radius of the Earth
 SQUARE_FOOT_IN_SQUARE_METRE = 10.7639
 
@@ -44,7 +44,7 @@ def haversine(lonlat1, lonlat2):
     return c * R
 
 
-def polygon_from_points(points, polygenize_method, alpha=None):
+def polygon_from_points(points: np.array, polygenize_method: str, alpha: int = None) -> Polygon:
     """ takes plat/lng array of points and create polygon from them """
 
     assert polygenize_method in ['alpha_shape', 'convex_hull'], \
@@ -58,7 +58,7 @@ def polygon_from_points(points, polygenize_method, alpha=None):
     return poly
 
 
-def alpha_shape(points, alpha, only_outer=True):
+def alpha_shape(points: np.array, alpha: int, only_outer: bool = True):
     # if len(points) < 4:
     #     # When you have a triangle, there is no sense
     #     # in computing an alpha shape.
@@ -119,7 +119,7 @@ def alpha_shape(points, alpha, only_outer=True):
     return ops.cascaded_union(triangles), edge_points, edges
 
 
-def calc_polygon_area_sq_unit(polygon, unit='sqkm'):
+def calc_polygon_area_sq_unit(polygon: Polygon, unit: str = 'sqkm') -> float:
 
     """
     this function will calculate the square area of a polygon (Kilometers/ Miles)
@@ -135,7 +135,7 @@ def calc_polygon_area_sq_unit(polygon, unit='sqkm'):
     return polygon_area
 
 
-def calc_cluster_density(points):
+def calc_cluster_density(points: np.array) -> float:
     """
     :param points: all points in cluster
     :return: cluster density
@@ -148,25 +148,25 @@ def calc_cluster_density(points):
     return 1 / mean_squared_distane_km
 
 
-def polygon_intersection(clust_polygon, ww_polygons, type_of_area_mapped):
+def polygon_intersection(cluster_polygon: Polygon, ww_polygons: gpd.GeoDataFrame, type_of_area_mapped: str) -> float:
     """
-    :param clust_polygon: df of clustering polygons
+    :param cluster_polygon: polygon from clustering
     :param ww_polygons: df of windward polygons
     :param type_of_area_mapped: ports vs pwa
     :return: geopandas dataframe with extra feature of intersection of polygons with windward's polygons
     """
     # choose relevant type of polygons
-    ww_polygons = ww_polygons[ww_polygons.areaType == AREA_TYPE_RESOLVER[type_of_area_mapped]]
+    ww_polygons = ww_polygons[ww_polygons.polygon_area_type == AREA_TYPE_RESOLVER[type_of_area_mapped]]
 
     intersection_value = 0
-    temp_df = ww_polygons[ww_polygons.intersects(clust_polygon)]
+    temp_df = ww_polygons[ww_polygons.intersects(cluster_polygon)]
     if not temp_df.empty:
-        intersection_value = clust_polygon.intersection(temp_df.iloc[0]['geometry']).area / clust_polygon.area * 100
+        intersection_value = cluster_polygon.intersection(temp_df.iloc[0]['geometry']).area / cluster_polygon.area * 100
 
     return intersection_value
 
 
-def calc_polygon_distance_from_nearest_port(polygon, ports_df):
+def calc_polygon_distance_from_nearest_port(polygon: Polygon, ports_df: gpd.GeoDataFrame) -> Tuple[float, str]:
     """takes a polygon and ports df,
      calculate haversine distances from ports to polygon,
      returns: the name of nearest port and distance from it"""
@@ -178,7 +178,7 @@ def calc_polygon_distance_from_nearest_port(polygon, ports_df):
     return min_dist, name_of_nearest_port
 
 
-def filter_points_far_from_port(ports_df, port_name, points, idxs):
+def filter_points_far_from_port(ports_df: gpd.GeoDataFrame, port_name: str, points: np.array, idxs: list) -> Tuple[np.array, list]:
     """ calculate distance between port and the activity points related to it
     filters out points that are more than 200km away.
     used for destination based port waiting area clustering"""
@@ -204,22 +204,22 @@ def merge_polygons(geo_df):
     return merged_polygons
 
 
-def calc_nearest_shore(poly, shoreline_polygon, method='euclidean'):
+def calc_nearest_shore(cluster_polygon: Polygon, shoreline_polygon: MultiPolygon, method: str = 'haversine') -> dict:
 
     """
     this function will calculate nearest point to shoreline layer for a given polygon
-    :param poly: Polygon Object
+    :param cluster_polygon: Polygon Object from clustering
     :param shoreline_polygon: shoreline layer polygon
     :param method: euclidean / haversine
     :return:
     """
 
-    if poly.intersects(shoreline_polygon):
+    if cluster_polygon.intersects(shoreline_polygon):
         distance = 0
         nearest_shore = {f'distance_from_shore_{method}': distance}
 
     else:
-        nearest_polygons_points = nearest_points(shoreline_polygon, poly)
+        nearest_polygons_points = nearest_points(shoreline_polygon, cluster_polygon)
         point1, point2 = (nearest_polygons_points[0].y, nearest_polygons_points[0].x), \
                          (nearest_polygons_points[1].y, nearest_polygons_points[1].x)
 
@@ -267,10 +267,10 @@ def calc_nearest_shore_bulk(df, shoreline_polygon, method='euclidean'):
     return df
 
 
-def calc_polygon_distance_from_nearest_ww_polygon(polygon, ww_polygons_centroids):
+def calc_polygon_distance_from_nearest_ww_polygon(cluster_polygon: Polygon, ww_polygons_centroids: np.array) -> float:
     """takes a polygon and an array of ports centroids
     and returns the distance in km from the nearest port from the array"""
-    polygon_centroid = (polygon.centroid.y, polygon.centroid.x)
+    polygon_centroid = (cluster_polygon.centroid.y, cluster_polygon.centroid.x)
     dists = [haversine(ww_poly_centroid, polygon_centroid) for ww_poly_centroid in ww_polygons_centroids]
     return np.min(dists)
 
@@ -404,17 +404,15 @@ def merge_adjacent_polygons(geo_df, inflation_meter=1000, aggfunc='mean'):
     return merged_inflated, merged_df
 
 
-def calc_entropy(feature):
+def calc_entropy(feature: pd.Series) -> float:
     """ takes categorical feature values and returns the column's entropy
     The maximum value of entropy is log𝑘, where 𝑘 is the number of categories you are using."""
     vc = pd.Series(feature).value_counts(normalize=True, sort=False)
     return -(vc * np.log(vc) / np.log(math.e)).sum()
 
 
-def create_google_maps_link_to_centroid(centroid):
-
+def create_google_maps_link_to_centroid(centroid: Point) -> str:
     """
-
     :param centroid: Point object
     :return: google maps link with the location
     """
