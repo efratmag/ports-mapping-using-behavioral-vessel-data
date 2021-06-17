@@ -72,9 +72,11 @@ def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaTyp
     return df, ports_df, polygons_df, main_land, shoreline_polygon
 
 
-def polygenize_clusters_with_features(type_of_area_mapped, df_for_clustering, polygons_df, main_land, blip,
-                                      optimize_polygon, alpha, polygon_type, shoreline_distance_method='haversine',
-                                      shoreline_polygon=None, ports_df=None, only_container_vessels=None):
+def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str], df_for_clustering: pd.DataFrame,
+                                      polygons_df: pd.DataFrame, main_land: MultiPolygon, blip: str,
+                                      optimize_polygon: bool, alpha: int, polygon_type: str,
+                                      shoreline_distance_method: str = 'haversine', shoreline_polygon: str = None,
+                                      ports_df: pd.DataFrame = None, only_container_vessels: bool = None) -> gpd.GeoDataFrame:
 
     """
     :param type_of_area_mapped: 'ports' or 'pwa' (ports waiting areas).
@@ -169,7 +171,8 @@ def polygenize_clusters_with_features(type_of_area_mapped, df_for_clustering, po
     return cluster_polygons
 
 
-def save_data(type_of_area_mapped, polygenized_clusters_geodataframe, export_path):
+def save_data(type_of_area_mapped: Union[AreaType, str], polygenized_clusters_geodataframe: gpd.GeoDataFrame,
+              export_path: str):
     """
     saves geojson and csv versions of the mapped areas.
 
