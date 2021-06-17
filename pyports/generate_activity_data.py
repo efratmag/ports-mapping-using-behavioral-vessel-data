@@ -2,11 +2,9 @@
 Get activity data from database/ import_path and extract needed features.
 """
 
-from shapely.geometry import Point
 import os
 import fire
 import pandas as pd
-import geopandas as gpd
 import pymongo
 from bson import ObjectId
 import logging
@@ -19,56 +17,25 @@ from pyports.get_metadata import get_vessels_info, get_ww_polygons
 def extract_coordinates(df: pd.DataFrame, blip: str) -> pd.DataFrame:
 
     """
-    a function that extracts lat and lng from a Series with geometry dict
+    a function that extracts lat and lon from a Series with geometry dict
     :param df: Dataframe with coordinates dict columns
     :param blip: "firstBlip" / "lastBlip"
-    :return: df with lat lng coordinates
+    :return: df with lat lon coordinates
     """
 
     coordinates_df = df[blip].dropna().apply(eval).apply(lambda x: x['geometry']['coordinates']).apply(pd.Series) # extract geometry from nested dict
-    coordinates_df = coordinates_df.rename(columns={0: blip + '_lng', 1: blip + '_lat'})
+    coordinates_df = coordinates_df.rename(columns={0: blip + '_lon', 1: blip + '_lat'})
 
     df = df.merge(coordinates_df, left_index=True, right_index=True, how='left')
 
     return df
 
 
-def find_intersection_with_polygons(df: pd.DataFrame, polygons_df: gpd.GeoDataFrame, blip: str) -> gpd.GeoDataFrame:
-
-    """
-    this function will find for each activity point its ww polygon id and type (if an intersection will be found)
-    :param df: activity df
-    :param polygons_df: ww polygons df
-    :param blip: "firstBlip" / "lastBlip"
-    :return: activity df with additional columns for ww polygon id and type
-    """
-
-    df['geometry'] = df.apply(lambda x: Point(x[blip + '_lng'], x[blip + '_lat']) if not pd.isna(
-        x[blip + '_lat']) else None, axis=1)  # convert lat,lng to Point object #
-
-    df = gpd.GeoDataFrame(df)
-
-    df = gpd.sjoin(df, polygons_df[['polygon_id', 'polygon_area_type', 'geometry'
-                                    ]], how='left').drop('index_right', axis=1)  # spatial join (left: activity points & right: ww polygons)
-
-    df['polygon_id'], df['polygon_area_type'] = df['polygon_id'].astype(str), df['polygon_area_type'].astype(str) # convert to string
-
-    merged_polygons = df.groupby('_id', as_index=False).agg({'polygon_id': ', '.join,  # create df with aggregated to polygons_ids & types
-                                                             'polygon_area_type': ', '.join}).replace({'nan': None})
-
-    df = df.drop_duplicates('_id').drop(['polygon_id', 'polygon_area_type', 'geometry'], axis=1)  # drop duplicate rows caused by sjoin
-    df = df.merge(merged_polygons, on='_id')  # merge polygons intersections
-    df = df.rename(columns={'polygon_id': blip + '_polygon_id',
-                            'polygon_area_type': blip + '_polygon_area_type'})  # rename in respect to blip
-
-    return df
-
-
 def get_activity_df(import_path: str, db: pymongo.MongoClient, vessels_ids: List[str] = None,
-                    activity: ACTIVITY = ACTIVITY.MOORING.value, debug: bool = False) -> pd.DataFrame:
+                    activity: ACTIVITY = ACTIVITY.ANCHORING.value, debug: bool = False) -> pd.DataFrame:
 
     """
-    this function will load the activity data
+    Load the activity data and extract lat lon.
     :param import_path: path to location of activity file: mooring.csv.gz / anchoring.csv.gz
     :param db: MongoDB object
     :param vessels_ids: filter data by specific vessels_ids
@@ -89,9 +56,9 @@ def get_activity_df(import_path: str, db: pymongo.MongoClient, vessels_ids: List
         col = db[activity]
         col = col.find(query, columns_projection).limit(nrows) if nrows else col.find(query, columns_projection)
         activity_df = pd.DataFrame(list(col))
-        activity_df = activity_df.rename(columns={'firstBlip.geometry.coordinates.0': 'firstBlip_lng',
+        activity_df = activity_df.rename(columns={'firstBlip.geometry.coordinates.0': 'firstBlip_lon',
                                                   'firstBlip.geometry.coordinates.1': 'firstBlip_lat',
-                                                  'lastBlip.geometry.coordinates.0': 'lastBlip_lng',
+                                                  'lastBlip.geometry.coordinates.0': 'lastBlip_lon',
                                                   'lastBlip.geometry.coordinates.1': 'lastBlip_lat'})
 
     else:
@@ -111,18 +78,17 @@ def get_activity_df(import_path: str, db: pymongo.MongoClient, vessels_ids: List
     return activity_df
 
 
-def main(export_path: str, activity: Union[ACTIVITY, str] = ACTIVITY.MOORING, vessels_ids: str = None,
+def main(export_path: str, activity: Union[ACTIVITY, str] = ACTIVITY.ANCHORING, vessels_ids: str = None,
          import_path: str = None, use_db: bool = None, debug: bool = False):
 
     """
-    This code will get all relevant data and prepare it for clustering
+    Generate dataframe for clustering and save it to export path.
     :param export_path: path in which the output will be exported
     :param activity: "mooring" / "anchoring"
     :param import_path: path to directory with all relevant files: polygons.json, vessels.json, anchoring.csv.gz, mooring.csv.gz
     :param vessels_ids: comma-separated string of vessels ids for mongo query
     :param use_db: if True, will use mongo db to query data
     :param debug: if True, only a first 10K rows of each file will be processed for the activity file
-    :return:
     """
 
     activity = activity.value if isinstance(activity, ACTIVITY) else activity  # parse activity value
@@ -143,20 +109,15 @@ def main(export_path: str, activity: Union[ACTIVITY, str] = ACTIVITY.MOORING, ve
     vessels_df = get_vessels_info(import_path, db, vessels_ids)  # WW vessels info
 
     activity_df = get_activity_df(import_path, db, vessels_ids, activity, debug)  # vessels activity
-
-    activity_df = find_intersection_with_polygons(activity_df, polygons_df, 'firstBlip')  # enrich activity_df with polygons info
-    activity_df = find_intersection_with_polygons(activity_df, polygons_df, 'lastBlip') # enrich activity_df with polygons info
-
-    activity_df = activity_df.merge(vessels_df, on='vesselId', how='left')  # enrich activity_df with vessels info
-
-    activity_df = activity_df.merge(polygons_df.set_index('polygon_id').drop('geometry', axis=1), # enrich with activity_df df with nextPort info
-                                    left_on='nextPort', right_index=True, how='left').rename(
-        columns={'name': 'nextPort_name'})
+    # enrich activity_df with vessels info
+    activity_df = activity_df.merge(vessels_df, on='vesselId', how='left')
+    # enrich with activity_df df with nextPort info
+    activity_df = activity_df.merge(polygons_df.set_index('polygon_id').drop('geometry', axis=1),
+                                    left_on='nextPort', right_index=True, how='left').rename(columns={'name': 'nextPort_name'})
+    # fill missing nextPort values with 'unknown'
     activity_df.nextPort_name.fillna('UNKNOWN', inplace=True)
-
-    activity_df.to_csv(os.path.join(export_path, f'{activity}.csv.gz'), index=False, compression='gzip')
-
-    return activity_df
+    # save activity dataframe to csv
+    activity_df.to_csv(os.path.join(export_path, f'df_for_clustering_{activity}.csv.gz'), index=False, compression='gzip')
 
 
 if __name__ == "__main__":
