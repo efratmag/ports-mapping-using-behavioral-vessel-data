@@ -41,8 +41,8 @@ def main(import_path: str, export_path: str, activity: Union[ACTIVITY, str] = AC
 
     # loading data
     df, ports_df, polygons_df, main_land, shoreline_polygon = \
-        get_data_for_clustering(import_path, type_of_area_mapped, activity, debug,
-                                sub_area_polygon_fname, blip, only_container_vessels)
+        get_data_for_clustering(import_path, type_of_area_mapped, activity,  blip,
+                                only_container_vessels, sub_area_polygon_fname, debug)
 
     locations = df[[f'{blip}Blip_lat', f'{blip}Blip_lng']].to_numpy()  # points for clustering
 
