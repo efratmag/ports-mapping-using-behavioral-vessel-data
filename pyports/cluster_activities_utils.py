@@ -33,6 +33,9 @@ def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaTyp
      of shoreline
     """
 
+    activity = activity.value if isinstance(activity, ACTIVITY) else activity
+    type_of_area_mapped = type_of_area_mapped.value if isinstance(type_of_area_mapped, AreaType) else type_of_area_mapped
+
     # TODO: add shoreline needed files to ww
     # TODO: update with winward querying methods
     db = None
