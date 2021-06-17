@@ -118,7 +118,7 @@ def get_ports_info(import_path: str, db: pymongo.MongoClient = None) -> pd.DataF
         col = db["ports"]
         col = col.find({}, {'_id': 1, 'country': 1, 'name': 1, 'center_coordinates.0': 1, 'center_coordinates.1': 1})
         ports_df = pd.DataFrame(list(col)).drop(['_id'], axis=1)
-        ports_df = ports_df.rename(columns={'center_coordinates.0': 'lng', 'center_coordinates.1': 'lat'})
+        ports_df = ports_df.rename(columns={'center_coordinates.0': 'lon', 'center_coordinates.1': 'lat'})
 
     else:
         ports_file_path = os.path.join(import_path, 'ports.json')
@@ -129,7 +129,7 @@ def get_ports_info(import_path: str, db: pymongo.MongoClient = None) -> pd.DataF
         ports_df = ports_df[['country', 'name', 'center_coordinates']]
 
         ports_df['lat'] = ports_df.center_coordinates.map(lambda x: x[1])
-        ports_df['lng'] = ports_df.center_coordinates.map(lambda x: x[0])
+        ports_df['lon'] = ports_df.center_coordinates.map(lambda x: x[0])
 
         ports_df = ports_df.reset_index().rename(columns={'index': 'PortId'}).drop('center_coordinates', axis=1)
 
