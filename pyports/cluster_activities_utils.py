@@ -33,6 +33,7 @@ def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaTyp
      of shoreline
     """
 
+    # parsing input values
     activity = activity.value if isinstance(activity, ACTIVITY) else activity
     type_of_area_mapped = type_of_area_mapped.value if isinstance(type_of_area_mapped, AreaType) else type_of_area_mapped
 
@@ -42,8 +43,6 @@ def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaTyp
     if use_db:
         myclient = pymongo.MongoClient("<your connection string here>")  # initiate MongoClient for mongo queries
         db = myclient["<DB name here>"]
-
-    activity = activity.value if isinstance(activity, ACTIVITY) else activity  # parse activity value
 
     df_for_clustering_fname = f'df_for_clustering_{activity}.csv.gz'
 
