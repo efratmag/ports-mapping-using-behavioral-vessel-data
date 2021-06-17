@@ -7,7 +7,6 @@ import pymongo
 from shapely.geometry import Point
 import datetime
 import os
-import logging
 from typing import Union, Tuple
 
 from pyports.get_metadata import get_ww_polygons, get_ports_info, get_shoreline_layer
@@ -47,13 +46,11 @@ def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaTyp
 
     nrows = 10000 if debug else None  # will load first 10K rows if debug == True
 
-    logging.info('loading activity data...')
     df = pd.read_csv(os.path.join(import_path, df_for_clustering_fname), low_memory=False, nrows=nrows)
 
     if sub_area_polygon_fname:  # take only area of the data, e.g. 'maps/mediterranean.geojson'
-        logging.info('Calculating points within sub area...')
         sub_area_polygon = gpd.read_file(os.path.join(import_path, sub_area_polygon_fname)).loc[0, 'geometry']
-        df = df[df.apply(lambda x: Point(x[f'{blip}Blip_lng'], x[f'{blip}Blip_lat']).within(sub_area_polygon), axis=1)]
+        df = df[df.apply(lambda x: Point(x[f'{blip}Blip_lon'], x[f'{blip}Blip_lat']).within(sub_area_polygon), axis=1)]
 
     if type_of_area_mapped == 'pwa':
         # if destination based clustering for pwa then include only activities with known destination
@@ -94,8 +91,6 @@ def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str],
     :return: geopandas dataframe of all polygenized clusters with their features.
     """
 
-    logging.info('starting feature extraction for clusters...')
-
     df_for_clustering = df_for_clustering[df_for_clustering.cluster_label != -1]  # remove clustering outlier points
 
     ww_polygons_centroids = np.array([polygons_df.geometry.centroid.y, polygons_df.geometry.centroid.x]).T
@@ -105,7 +100,7 @@ def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str],
     for cluster in tqdm(df_for_clustering.cluster_label.unique()):  # iterate over clusters
         record = {}
         cluster_df = df_for_clustering[df_for_clustering.cluster_label == cluster]  # sub-df for chosen cluster
-        points = cluster_df[[f'{blip}Blip_lng', f'{blip}Blip_lat']].to_numpy()  # numpy array of lng/lat
+        points = cluster_df[[f'{blip}Blip_lon', f'{blip}Blip_lat']].to_numpy()  # numpy array of lon/lat
 
         if optimize_polygon:
             probs = cluster_df['cluster_probability'].to_numpy()
@@ -146,7 +141,7 @@ def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str],
             # cluster
         record['is_in_river'] = polygon.within(main_land)  # is the polygon in rivers (True) or in the sea/ocean (False)
         record['centroid_lat'] = polygon.centroid.y  # latitude of polygon centroid
-        record['centroid_lng'] = polygon.centroid.x  # longitude of polygon centroid
+        record['centroid_lon'] = polygon.centroid.x  # longitude of polygon centroid
         record['pct_intersection'] = polygon_intersection(polygon, polygons_df, type_of_area_mapped)  # percent intersection with WW polygons
         record['dist_to_ww_poly'] = calc_polygon_distance_from_nearest_ww_polygon(polygon, ww_polygons_centroids)  # distance from
         # TODO: find out why getting warning: UserWarning: Geometry is in a geographic CRS. Results from 'centroid' are
@@ -166,8 +161,6 @@ def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str],
 
     cluster_polygons = gpd.GeoDataFrame(cluster_polygons)
 
-    logging.info('finished extracting polygons features!')
-
     return cluster_polygons
 
 
@@ -181,12 +174,8 @@ def save_data(type_of_area_mapped: Union[AreaType, str], polygenized_clusters_ge
     :param export_path: the path to save the files.
     """
 
-    logging.info('saving data...')
-
     fname = f'{type_of_area_mapped}_polygons_{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}'
 
     polygenized_clusters_geodataframe.to_file(os.path.join(export_path, fname + '.geojson'), driver="GeoJSON")
     polygenized_clusters_geodataframe.to_csv(os.path.join(export_path, fname + '.csv'))
-
-    logging.info('finished saving data!')
 
