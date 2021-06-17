@@ -93,6 +93,9 @@ def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str],
     :return: geopandas dataframe of all polygenized clusters with their features.
     """
 
+    # parsing input values
+    type_of_area_mapped = type_of_area_mapped.value if isinstance(type_of_area_mapped, AreaType) else type_of_area_mapped
+
     df_for_clustering = df_for_clustering[df_for_clustering.cluster_label != -1]  # remove clustering outlier points
 
     ww_polygons_centroids = np.array([polygons_df.geometry.centroid.y, polygons_df.geometry.centroid.x]).T
