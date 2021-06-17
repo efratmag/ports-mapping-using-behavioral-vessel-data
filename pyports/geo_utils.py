@@ -182,8 +182,15 @@ def filter_points_far_from_port(ports_df, port_name, points, idxs):
     """ calculate distance between port and the activity points related to it
     filters out points that are more than 200km away.
     used for destination based port waiting area clustering"""
-    port_centroid = [ports_df[ports_df.name == port_name].lat.item(),
-                     ports_df[ports_df.name == port_name].lon.item()]
+
+    if port_name == 'Port Said East':  # fix specific bug in port said port
+        port_name = 'Port Said'  # TODO: fix appropriately this bug in port name
+
+    port_data = ports_df[ports_df.name == port_name]
+    if port_data.shape[0] > 1:  # fix bug for duplicate port entries
+        port_data = port_data[:1]
+
+    port_centroid = [port_data.lat.item(), port_data.lon.item()]
     dists = np.asarray([haversine(port_centroid, loc) for loc in points])
     good_idxs = idxs[np.where(dists < 200)]
     points = points[np.where(dists < 200)]
