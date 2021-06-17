@@ -13,6 +13,7 @@ from pyports.constants import ACTIVITY, AreaType
 from typing import Union
 
 
+# TODO: fix issues with import/export paths
 def main(import_path: str, export_path: str, activity: Union[ACTIVITY, str] = ACTIVITY.ANCHORING,
          blip: str = 'first', type_of_area_mapped: Union[AreaType, str] = AreaType.PORTS_WAITING_AREA,
          only_container_vessels: bool = True, hdbscan_min_cluster_size: int = 20, hdbscan_min_samples: int = 10,
@@ -39,20 +40,19 @@ def main(import_path: str, export_path: str, activity: Union[ACTIVITY, str] = AC
 
     """
 
+    logging.info('loading data...')
     # loading data
     df, ports_df, polygons_df, main_land, shoreline_polygon = \
         get_data_for_clustering(import_path, type_of_area_mapped, activity,  blip,
                                 only_container_vessels, sub_area_polygon_fname, debug)
 
-    locations = df[[f'{blip}Blip_lat', f'{blip}Blip_lng']].to_numpy()  # points for clustering
+    locations = df[[f'{blip}Blip_lat', f'{blip}Blip_lon']].to_numpy()  # points for clustering
 
     logging.info('starting clustering...')
 
     # cluster per port and create dataframe for feature generation
     num_clusters = 0
     for i, port in enumerate(df.nextPort_name.unique()):
-        if port == 'Port Said East':
-            port = 'Port Said'  # TODO: fix appropriately this bug in port name
         idxs = df.index[df.nextPort_name == port]
         locs = locations[idxs]
         locs, idxs = filter_points_far_from_port(ports_df, port, locs, idxs)
@@ -62,7 +62,7 @@ def main(import_path: str, export_path: str, activity: Union[ACTIVITY, str] = AC
                                         metric=hdbscan_distance_metric)
             clusterer.fit(locs)
             df.loc[idxs, 'cluster_probability'] = clusterer.probabilities_
-            # TODO: maybe insted, we can give labels as portID_cluster_label
+            # TODO: maybe instead, we can give labels as portID_cluster_label
             if i == 0:
                 df.loc[idxs, 'cluster_label'] = clusterer.labels_
                 num_clusters = clusterer.labels_.max() + 1
@@ -82,6 +82,7 @@ def main(import_path: str, export_path: str, activity: Union[ACTIVITY, str] = AC
 
     # save results
     if save_files:
+        logging.info('saving files...')
         save_data(type_of_area_mapped, ports_waiting_areas_polygons, export_path)
 
 
