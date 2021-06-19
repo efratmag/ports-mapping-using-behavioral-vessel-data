@@ -110,14 +110,16 @@ def main(export_path: str, activity: Union[ACTIVITY, str] = ACTIVITY.ANCHORING, 
 
     activity_df = get_activity_df(import_path, db, vessels_ids, activity, debug)  # vessels activity
     # enrich activity_df with vessels info
-    activity_df = activity_df.merge(vessels_df, on='vesselId', how='left')
+    activity_and_vessels_df = activity_df.merge(vessels_df, on='vesselId', how='left')
     # enrich with activity_df df with nextPort info
-    activity_df = activity_df.merge(polygons_df.set_index('polygon_id').drop('geometry', axis=1),
-                                    left_on='nextPort', right_index=True, how='left').rename(columns={'name': 'nextPort_name'})
+    activity_and_nextport_df = activity_and_vessels_df.merge(polygons_df.set_index('polygon_id').drop('geometry', axis=1),
+                                                             left_on='nextPort',
+                                                             right_index=True,
+                                                             how='left').rename(columns={'name': 'nextPort_name'})
     # fill missing nextPort values with 'unknown'
-    activity_df.nextPort_name.fillna('UNKNOWN', inplace=True)
+    final_df = activity_and_nextport_df.nextPort_name.fillna('UNKNOWN')
     # save activity dataframe to csv
-    activity_df.to_csv(os.path.join(export_path, f'df_for_clustering_{activity}.csv.gz'), index=False, compression='gzip')
+    final_df.to_csv(os.path.join(export_path, f'df_for_clustering_{activity}.csv.gz'), index=False, compression='gzip')
 
 
 if __name__ == "__main__":
