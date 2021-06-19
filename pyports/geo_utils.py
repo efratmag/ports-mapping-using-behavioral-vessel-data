@@ -10,7 +10,7 @@ from sklearn.metrics.pairwise import haversine_distances
 import logging
 from tqdm import tqdm
 from kneed import KneeLocator
-from typing import Tuple
+from typing import Tuple, Union
 
 # TODO: maybe move to constants.py
 R = 6378.1  # Radius of the Earth
@@ -25,7 +25,7 @@ UNIT_RESOLVER = {'sqmi': 1609.34, 'sqkm': 1000.0}
 AREA_TYPE_RESOLVER = {'pwa': 'PortWaitingArea', 'ports': 'Port'}
 
 
-def haversine(lonlat1, lonlat2):
+def haversine(lonlat1: Tuple[float, float], lonlat2: Tuple[float, float]):
 
     """
     Calculate the great circle distance between two points
@@ -148,7 +148,8 @@ def calc_cluster_density(points: np.array) -> float:
     return 1 / mean_squared_distane_km
 
 
-def polygon_intersection(cluster_polygon: Polygon, ww_polygons: gpd.GeoDataFrame, type_of_area_mapped: str) -> float:
+def polygon_intersection(cluster_polygon: Union[Polygon, MultiPolygon], ww_polygons: gpd.GeoDataFrame,
+                         type_of_area_mapped: str) -> float:
     """
     :param cluster_polygon: polygon from clustering
     :param ww_polygons: df of windward polygons
@@ -166,7 +167,7 @@ def polygon_intersection(cluster_polygon: Polygon, ww_polygons: gpd.GeoDataFrame
     return intersection_value
 
 
-def calc_polygon_distance_from_nearest_port(polygon: Polygon, ports_df: gpd.GeoDataFrame) -> Tuple[float, str]:
+def calc_polygon_distance_from_nearest_port(polygon: Union[Polygon, MultiPolygon], ports_df: gpd.GeoDataFrame) -> Tuple[float, str]:
     """takes a polygon and ports df,
      calculate haversine distances from ports to polygon,
      returns: the name of nearest port and distance from it"""
@@ -190,14 +191,14 @@ def filter_points_far_from_port(ports_df: gpd.GeoDataFrame, port_name: str, poin
     if port_data.shape[0] > 1:  # fix bug for duplicate port entries
         port_data = port_data[:1]
 
-    port_centroid = [port_data.lat.item(), port_data.lon.item()]
+    port_centroid = (port_data.lat.item(), port_data.lon.item())
     dists = np.asarray([haversine(port_centroid, loc) for loc in points])
     good_idxs = idxs[np.where(dists < 200)]
     points = points[np.where(dists < 200)]
     return points, good_idxs
 
 
-def merge_polygons(geo_df):
+def merge_polygons(geo_df: gpd.GeoDataFrame) -> Union[Polygon, MultiPolygon]:
 
     merged_polygons = gpd.GeoSeries(ops.cascaded_union(geo_df['geometry'])).loc[0]
 
@@ -239,7 +240,7 @@ def calc_nearest_shore(cluster_polygon: Polygon, shoreline_polygon: MultiPolygon
     return nearest_shore
 
 
-def calc_nearest_shore_bulk(df, shoreline_polygon, method='euclidean'):
+def calc_nearest_shore_bulk(df: gpd.GeoDataFrame, shoreline_polygon: MultiPolygon, method: str = 'euclidean') -> gpd.GeoDataFrame:
 
     """
     this function will iterate over df with polygons and calculate nearest point to shoreline layer
@@ -267,7 +268,7 @@ def calc_nearest_shore_bulk(df, shoreline_polygon, method='euclidean'):
     return df
 
 
-def calc_polygon_distance_from_nearest_ww_polygon(cluster_polygon: Polygon, ww_polygons_centroids: np.array) -> float:
+def calc_polygon_distance_from_nearest_ww_polygon(cluster_polygon: Union[Polygon, MultiPolygon], ww_polygons_centroids: np.array) -> float:
     """takes a polygon and an array of ports centroids
     and returns the distance in km from the nearest port from the array"""
     polygon_centroid = (cluster_polygon.centroid.y, cluster_polygon.centroid.x)
@@ -275,7 +276,7 @@ def calc_polygon_distance_from_nearest_ww_polygon(cluster_polygon: Polygon, ww_p
     return np.min(dists)
 
 
-def get_multipolygon_exterior(multipolygon):
+def get_multipolygon_exterior(multipolygon: MultiPolygon) -> list:
     """
     this function will return exterior points of a multipolygon
     :param multipolygon:
@@ -291,7 +292,7 @@ def get_multipolygon_exterior(multipolygon):
     return coordinates
 
 
-def polygon_to_wgs84(polygon, avg_lat=None):
+def polygon_to_wgs84(polygon: Union[Polygon, MultiPolygon], avg_lat: float = None) -> Tuple[float, Union[Polygon,MultiPolygon]]:
 
     """
     this function will return polygon with wgs84 crs
@@ -320,7 +321,7 @@ def polygon_to_wgs84(polygon, avg_lat=None):
     return avg_lat, shape(ops.transform(to_wgs84, polygon))
 
 
-def polygon_to_meters(polygon, avg_lat=None):
+def polygon_to_meters(polygon: Union[Polygon, MultiPolygon], avg_lat: float = None) -> Tuple[float, Union[Polygon,MultiPolygon]]:
 
     """
     this function will return polygon with meters crs
@@ -349,16 +350,16 @@ def polygon_to_meters(polygon, avg_lat=None):
     return avg_lat, shape(ops.transform(to_meters, polygon))
 
 
-def get_avg_lat(coordinates):
+def get_avg_lat(coordinates: list) -> float:
     s = sum(c[1] for c in coordinates)
     return float(s) / len(coordinates)
 
 
-def inflate_polygon(polygon, meters, resolution=4):
+def inflate_polygon(polygon: Union[Polygon, MultiPolygon], meters: Union[int, float], resolution: int = 4) -> Union[Polygon, MultiPolygon]:
 
     """
     This function will inflate polygon by meters
-    :param polygon: Polygon object
+    :param polygon: Polygon / MultiPolygon object
     :param meters: meters for the polygon to be inflated
     :param resolution: resolution value determines the number of segments used to approximate a quarter circle around a point.
     :return:
@@ -372,7 +373,8 @@ def inflate_polygon(polygon, meters, resolution=4):
     return polygon
 
 
-def merge_adjacent_polygons(geo_df, inflation_meter=1000, aggfunc='mean'):
+def merge_adjacent_polygons(geo_df: gpd.GeoDataFrame, inflation_meter: Union[float, int] = 1000,
+                            aggfunc: Union[str, dict] = 'mean') -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
 
     """
     This function will merge proximate polygons.
@@ -421,15 +423,31 @@ def create_google_maps_link_to_centroid(centroid: Point) -> str:
     return f'https://maps.google.com/?ll={centroid_lat},{centroid_lng}'
 
 
-def optimize_polygon_by_probs(points, probs, polygon_type, alpha=4, s=1):
+def optimize_polygon_by_probs(points: np.array, probs: np.array, polygon_type: str = 'alpha_shape',
+                              alpha: int = 4, s: int = 1, n_polygons: int = 20)\
+        -> Tuple[Union[Polygon, MultiPolygon], Union[Polygon, MultiPolygon], Union[float, None], int, list]:
 
-    all_prob = np.linspace(min(probs), 1, 20)
+    """
+    this function will optimize the polygons shapes by filtering out points with low probabilities.
+    it will create multiple polygons (n_polygons) for each probability threshold, calculate area, and save the value.
+    then it will look for an elbow point (using KneeLocator) to the probability threshold
+
+    :param points: numpy array of lng, lat
+    :param probs: hdbscan probabilities
+    :param polygon_type: 'alpha_shape'/ 'convex_hull'
+    :param alpha: alpha value for alpha_shape
+    :param s: sensitivity value for KneeLocator
+    :param n_polygons: n polygon will be created, and the optimal one will be chosen
+    :return: optimal polygon, non-optimized polygon, elbow point, # of point removed, polygon optimization curve
+    """
+
+    prob_threshold = np.linspace(min(probs), 1, n_polygons)
 
     metrics = []
 
-    for prob in all_prob:
-        probs_mask = probs >= prob
-        relevant_points = points[probs_mask]
+    for threshold in prob_threshold:
+        threshold_mask = probs >= threshold
+        relevant_points = points[threshold_mask]
         if len(relevant_points) > 0:
 
             poly = polygon_from_points(relevant_points, polygon_type, alpha)
@@ -437,7 +455,7 @@ def optimize_polygon_by_probs(points, probs, polygon_type, alpha=4, s=1):
             area_size = calc_polygon_area_sq_unit(poly)
             metrics.append(area_size)
 
-    kneedle = KneeLocator(all_prob, metrics, S=s, curve="convex", direction="decreasing")
+    kneedle = KneeLocator(prob_threshold, metrics, S=s, curve="convex", direction="decreasing")
 
     original_polygon = polygon_from_points(points, polygon_type, alpha)
 
