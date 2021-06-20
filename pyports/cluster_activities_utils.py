@@ -16,7 +16,7 @@ from pyports.constants import ACTIVITY, AreaType
 def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaType, str], activity: Union[ACTIVITY, str],
                             blip: str, only_container_vessels: bool, sub_area_polygon_fname: str = None,
                             use_db: bool = False, debug: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame,
-                                                                                pd.DataFrame, MultiPolygon,
+                                                                                gpd.GeoDataFrame, MultiPolygon,
                                                                                 MultiPolygon]:
 
     """
@@ -63,7 +63,7 @@ def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaTyp
     if only_container_vessels:
         df = df[df.vessel_class_new == VesselType.CARGO_CONTAINER.value]  # take only container vessels
 
-    ports_df = get_ports_info(import_path, db)  # todo add mongo db
+    ports_df = get_ports_info(import_path, db)
     polygons_df = get_ww_polygons(import_path, db)  # WW polygons
     main_land, shoreline_polygon = get_shoreline_layer(import_path, db)
     # TODO: find out why still get error: WARNING:fiona.ogrext:Skipping field otherNames: invalid type 5
@@ -72,10 +72,11 @@ def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaTyp
 
 
 def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str], df_for_clustering: pd.DataFrame,
-                                      polygons_df: pd.DataFrame, main_land: MultiPolygon, blip: str,
+                                      polygons_df: gpd.GeoDataFrame, main_land: MultiPolygon, blip: str,
                                       optimize_polygon: bool, alpha: int, polygon_type: str,
-                                      shoreline_distance_method: str = 'haversine', shoreline_polygon: str = None,
-                                      ports_df: pd.DataFrame = None, only_container_vessels: bool = None) -> gpd.GeoDataFrame:
+                                      shoreline_distance_method: str = 'haversine',
+                                      shoreline_polygon: MultiPolygon = None, ports_df: pd.DataFrame = None,
+                                      only_container_vessels: bool = None) -> gpd.GeoDataFrame:
 
     """
     :param type_of_area_mapped: 'ports' or 'pwa' (ports waiting areas).
