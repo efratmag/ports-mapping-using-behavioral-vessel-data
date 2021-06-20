@@ -45,7 +45,7 @@ def haversine(lonlat1: Tuple[float, float], lonlat2: Tuple[float, float]):
 
 
 def polygon_from_points(points: np.array, polygenize_method: str, alpha: int = None) -> Polygon:
-    """ takes plat/lng array of points and create polygon from them """
+    """ takes lat/lng array of points and create polygon from them """
 
     assert polygenize_method in ['alpha_shape', 'convex_hull'], \
         f'expect polygon_type="alpha_shape" or "convex_hull", got {polygenize_method}'
@@ -142,10 +142,10 @@ def calc_cluster_density(points: np.array) -> float:
     """
 
     distances = haversine_distances(np.radians(points))
-    mean_squared_distane = np.square(distances).mean()
-    mean_squared_distane_km = mean_squared_distane * R
+    mean_squared_distance = np.square(distances).mean()
+    mean_squared_distance_km = mean_squared_distance * R
 
-    return 1 / mean_squared_distane_km
+    return 1 / mean_squared_distance_km
 
 
 def polygon_intersection(cluster_polygon: Union[Polygon, MultiPolygon], ww_polygons: gpd.GeoDataFrame,
@@ -167,7 +167,7 @@ def polygon_intersection(cluster_polygon: Union[Polygon, MultiPolygon], ww_polyg
     return intersection_value
 
 
-def calc_polygon_distance_from_nearest_port(polygon: Union[Polygon, MultiPolygon], ports_df: gpd.GeoDataFrame) -> Tuple[float, str]:
+def calc_polygon_distance_from_nearest_port(polygon: Union[Polygon, MultiPolygon], ports_df: pd.DataFrame) -> Tuple[float, str]:
     """takes a polygon and ports df,
      calculate haversine distances from ports to polygon,
      returns: the name of nearest port and distance from it"""
@@ -179,7 +179,7 @@ def calc_polygon_distance_from_nearest_port(polygon: Union[Polygon, MultiPolygon
     return min_dist, name_of_nearest_port
 
 
-def filter_points_far_from_port(ports_df: gpd.GeoDataFrame, port_name: str, points: np.array, idxs: list) -> Tuple[np.array, list]:
+def filter_points_far_from_port(ports_df: pd.DataFrame, port_name: str, points: np.array, idxs: list) -> Tuple[np.array, list]:
     """ calculate distance between port and the activity points related to it
     filters out points that are more than 200km away.
     used for destination based port waiting area clustering"""
@@ -423,9 +423,10 @@ def create_google_maps_link_to_centroid(centroid: Point) -> str:
     return f'https://maps.google.com/?ll={centroid_lat},{centroid_lng}'
 
 
-def optimize_polygon_by_probs(points: np.array, probs: np.array, polygon_type: str = 'alpha_shape',
-                              alpha: int = 4, s: int = 1, n_polygons: int = 20)\
-        -> Tuple[Union[Polygon, MultiPolygon], Union[Polygon, MultiPolygon], Union[float, None], int, list]:
+def optimize_polygon_by_probs(points: np.array, probs: np.array, polygon_type: str = 'alpha_shape', alpha: int = 4,
+                              s: int = 1,  n_polygons: int = 20) -> Tuple[Union[Polygon, MultiPolygon],
+                                                                          Union[Polygon, MultiPolygon],
+                                                                          Union[float, None], int, list]:
 
     """
     this function will optimize the polygons shapes by filtering out points with low probabilities.
