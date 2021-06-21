@@ -128,7 +128,7 @@ def calc_polygon_area_sq_unit(polygon: Polygon, unit: str = 'sqkm') -> float:
     :return:
     """
 
-    avg_lat, polygon = polygon_to_meters(polygon)
+    avg_lat, polygon = polygon_to_meters(polygon)  # convert to meters
     polygon_area = np.sqrt(polygon.area) / UNIT_RESOLVER[unit]
     polygon_area *= polygon_area
 
@@ -157,12 +157,12 @@ def polygon_intersection(cluster_polygon: Union[Polygon, MultiPolygon], ww_polyg
     :return: geopandas dataframe with extra feature of intersection of polygons with windward's polygons
     """
     # choose relevant type of polygons
-    ww_polygons = ww_polygons[ww_polygons.polygon_area_type == AREA_TYPE_RESOLVER[type_of_area_mapped]]
+    ww_polygons = ww_polygons[ww_polygons.polygon_area_type == AREA_TYPE_RESOLVER[type_of_area_mapped]]  # filter by the relevant
 
     intersection_value = 0
-    temp_df = ww_polygons[ww_polygons.intersects(cluster_polygon)]
+    temp_df = ww_polygons[ww_polygons.intersects(cluster_polygon)]  # find intersection
     if not temp_df.empty:
-        intersection_value = cluster_polygon.intersection(temp_df.iloc[0]['geometry']).area / cluster_polygon.area * 100
+        intersection_value = cluster_polygon.intersection(temp_df.iloc[0]['geometry']).area / cluster_polygon.area * 100 # calculate % of intersection
 
     return intersection_value
 
@@ -199,6 +199,11 @@ def filter_points_far_from_port(ports_df: pd.DataFrame, port_name: str, points: 
 
 
 def merge_polygons(geo_df: gpd.GeoDataFrame) -> Union[Polygon, MultiPolygon]:
+    """
+    this function will merge GeoDataFrame into one Polygon/MultiPolygon Object
+    :param geo_df: GeoDataFrame with Polygons/MultiPolygon
+    :return:
+    """
 
     merged_polygons = gpd.GeoSeries(ops.cascaded_union(geo_df['geometry'])).loc[0]
 
@@ -215,19 +220,19 @@ def calc_nearest_shore(cluster_polygon: Polygon, shoreline_polygon: MultiPolygon
     :return:
     """
 
-    if cluster_polygon.intersects(shoreline_polygon):
+    if cluster_polygon.intersects(shoreline_polygon):  # check for intersection
         distance = 0
         nearest_shore = {f'distance_from_shore_{method}': distance}
 
     else:
-        nearest_polygons_points = nearest_points(shoreline_polygon, cluster_polygon)
+        nearest_polygons_points = nearest_points(shoreline_polygon, cluster_polygon)  # find nearest point
         point1, point2 = (nearest_polygons_points[0].y, nearest_polygons_points[0].x), \
                          (nearest_polygons_points[1].y, nearest_polygons_points[1].x)
 
         if method == 'euclidean':
-            distance = np.linalg.norm(np.array(point1) - np.array(point2))
+            distance = np.linalg.norm(np.array(point1) - np.array(point2)) # calculates nearest point distance euclidean
         elif method == 'haversine':
-            distance = haversine(point1, point2)
+            distance = haversine(point1, point2)  # calculates nearest point distance haversine
         else:
             raise ValueError('method must be "euclidean" or "haversine"')
 
@@ -238,34 +243,6 @@ def calc_nearest_shore(cluster_polygon: Polygon, shoreline_polygon: MultiPolygon
                          'nearest_point_lng': point2[1]}
 
     return nearest_shore
-
-
-def calc_nearest_shore_bulk(df: gpd.GeoDataFrame, shoreline_polygon: MultiPolygon, method: str = 'euclidean') -> gpd.GeoDataFrame:
-
-    """
-    this function will iterate over df with polygons and calculate nearest point to shoreline layer
-    :param df: geopandas df with polygons
-    :param shoreline_polygon: shoreline layer polygon
-    :param method: euclidean / haversine
-    :return:
-    """
-
-    results_list = []
-
-    for row in tqdm(df['geometry'].iteritems()):
-        index, poly = row
-
-        if index % 100 == 0 and index != 0:
-            logging.info(f'{index} instances was calculated')
-
-        nearest_shore = calc_nearest_shore(poly, shoreline_polygon, method)
-        results_list.append(nearest_shore)
-
-    results_df = pd.DataFrame(results_list)
-    shared_columns = set(results_df.columns).intersection(set(df.columns))
-    df = df.drop(shared_columns, axis=1)
-    df = pd.concat([df, results_df], axis=1)
-    return df
 
 
 def calc_polygon_distance_from_nearest_ww_polygon(cluster_polygon: Union[Polygon, MultiPolygon], ww_polygons_centroids: np.array) -> float:
@@ -284,7 +261,7 @@ def get_multipolygon_exterior(multipolygon: MultiPolygon) -> list:
     """
     coordinates = []
 
-    polygons_list = list(multipolygon)
+    polygons_list = list(multipolygon)  # multipolygon to list of polygons
 
     for polygon in polygons_list:
         coordinates.extend([(x[0], x[1]) for x in list(polygon.exterior.coords)])
@@ -302,21 +279,21 @@ def polygon_to_wgs84(polygon: Union[Polygon, MultiPolygon], avg_lat: float = Non
     """
 
     if not avg_lat:
-        if isinstance(polygon, Polygon):
+        if isinstance(polygon, Polygon):  # get average latitude of the polygon
 
-            avg_lat = get_avg_lat(polygon.exterior.coords)
+            avg_lat = get_avg_lat(polygon.exterior.coords)  # get average latitude of the polygon
 
         elif isinstance(polygon, MultiPolygon):
 
             avg_lat = get_avg_lat(get_multipolygon_exterior(polygon))
 
-    def shape_to_wgs84(x, y, avg_lat):
+    def shape_to_wgs84(x, y, avg_lat):  # convert to wgs84
         lng = x / math.cos(math.radians(avg_lat)) / METERS_IN_DEG
         lat = y / METERS_IN_DEG
         return lat, lng
 
     def to_wgs84(x, y):
-        return tuple(reversed(shape_to_wgs84(x, y, avg_lat)))
+        return tuple(reversed(shape_to_wgs84(x, y, avg_lat)))  # apply wgs84 conversion
 
     return avg_lat, shape(ops.transform(to_wgs84, polygon))
 
@@ -334,23 +311,28 @@ def polygon_to_meters(polygon: Union[Polygon, MultiPolygon], avg_lat: float = No
 
         if isinstance(polygon, Polygon):
 
-            avg_lat = get_avg_lat(polygon.exterior.coords)
+            avg_lat = get_avg_lat(polygon.exterior.coords)  # get average latitude of the polygon
 
         elif isinstance(polygon, MultiPolygon):
-            avg_lat = get_avg_lat(get_multipolygon_exterior(polygon))
+            avg_lat = get_avg_lat(get_multipolygon_exterior(polygon))  # get average latitude of the multipolygon
 
-    def shape_to_meters(lat, lng, avg_lat):
+    def shape_to_meters(lat, lng, avg_lat):  # convert to meters
         x = lng * math.cos(math.radians(avg_lat)) * METERS_IN_DEG
         y = lat * METERS_IN_DEG
         return x, y
 
     def to_meters(lng, lat):
-        return shape_to_meters(lat, lng, avg_lat)
+        return shape_to_meters(lat, lng, avg_lat)  # apply meter conversion
 
     return avg_lat, shape(ops.transform(to_meters, polygon))
 
 
 def get_avg_lat(coordinates: list) -> float:
+    """
+    functions that calculate average latitude for a list of coordinates
+    :param coordinates:
+    :return:
+    """
     s = sum(c[1] for c in coordinates)
     return float(s) / len(coordinates)
 
@@ -442,28 +424,29 @@ def optimize_polygon_by_probs(points: np.array, probs: np.array, polygon_type: s
     :return: optimal polygon, non-optimized polygon, elbow point, # of point removed, polygon optimization curve
     """
 
-    prob_threshold = np.linspace(min(probs), 1, n_polygons)
+    prob_threshold = np.linspace(min(probs), 1, n_polygons)  # initiate array with probabilities thresholds
 
     metrics = []
 
     for threshold in prob_threshold:
-        threshold_mask = probs >= threshold
-        relevant_points = points[threshold_mask]
+        threshold_mask = probs >= threshold  # create mask for filter by probability threshold
+        relevant_points = points[threshold_mask]  # filter by probability threshold
         if len(relevant_points) > 0:
 
-            poly = polygon_from_points(relevant_points, polygon_type, alpha)
+            poly = polygon_from_points(relevant_points, polygon_type, alpha) # create polygon out of the filtered points
 
-            area_size = calc_polygon_area_sq_unit(poly)
-            metrics.append(area_size)
+            area_size = calc_polygon_area_sq_unit(poly)  # calculate the area of the polygon
+            metrics.append(area_size)  # keep polygon area in "metrics" list
 
+    # search for elbow/knee in the metrics list
     kneedle = KneeLocator(prob_threshold, metrics, S=s, curve="convex", direction="decreasing")
 
-    original_polygon = polygon_from_points(points, polygon_type, alpha)
+    original_polygon = polygon_from_points(points, polygon_type, alpha)  # create polygon with no optimizations
 
     if kneedle.knee:
-
+        # create optimized polygon using kneedle.knee as threshold
         final_points = points[probs >= kneedle.knee]
-        points_removed = len(points) - len(final_points)
+        points_removed = len(points) - len(final_points)  # calculate number of points removed
         poly = polygon_from_points(final_points, polygon_type, alpha)
 
     else:
