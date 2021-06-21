@@ -1,4 +1,3 @@
-from pyports.constants import VesselType
 from pyports.geo_utils import *
 from tqdm import tqdm
 import pandas as pd
@@ -10,7 +9,7 @@ import os
 from typing import Union, Tuple
 
 from pyports.get_metadata import get_ww_polygons, get_ports_info, get_shoreline_layer
-from pyports.constants import ACTIVITY, AreaType
+from pyports.constants import ACTIVITY, AreaType, VesselType
 
 
 def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaType, str], activity: Union[ACTIVITY, str],
