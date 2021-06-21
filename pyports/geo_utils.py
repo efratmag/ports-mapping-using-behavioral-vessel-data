@@ -14,11 +14,10 @@ from typing import Tuple, Union
 from pyports.constants import R, UNIT_RESOLVER, AREA_TYPE_RESOLVER, METERS_IN_DEG
 
 
-def haversine(lonlat1: Tuple[float, float], lonlat2: Tuple[float, float]):
+def haversine(lonlat1: Tuple[float, float], lonlat2: Tuple[float, float]) -> float:
 
     """
-    Calculate the great circle distance between two points
-    on the earth (specified in decimal degrees)
+    Calculate the great circle distance between two points on the earth (specified in decimal degrees).
     """
     # convert decimal degrees to radians
     lat1, lon1 = lonlat1
@@ -34,7 +33,10 @@ def haversine(lonlat1: Tuple[float, float], lonlat2: Tuple[float, float]):
 
 
 def polygon_from_points(points: np.array, polygenize_method: str, alpha: int = None) -> Polygon:
-    """ takes lat/lng array of points and create polygon from them """
+
+    """
+    Takes lat/lng array of points and creates polygon from them, using alpha_shape or convex_hull method.
+    """
 
     assert polygenize_method in ['alpha_shape', 'convex_hull'], \
         f'expect polygon_type="alpha_shape" or "convex_hull", got {polygenize_method}'
@@ -44,10 +46,13 @@ def polygon_from_points(points: np.array, polygenize_method: str, alpha: int = N
         poly = alpha_shape(points, alpha)[0]
     elif polygenize_method == 'convex_hull':
         poly = MultiPoint(points).convex_hull
+
     return poly
 
 
 def alpha_shape(points: np.array, alpha: int, only_outer: bool = True):
+
+    # TODO: add type hints - abir's function
     # if len(points) < 4:
     #     # When you have a triangle, there is no sense
     #     # in computing an alpha shape.
@@ -105,34 +110,37 @@ def alpha_shape(points: np.array, alpha: int, only_outer: bool = True):
 
     m = MultiLineString(edge_points)
     triangles = list(ops.polygonize(m))
+
     return ops.cascaded_union(triangles), edge_points, edges
 
 
 def calc_polygon_area_sq_unit(polygon: Polygon, unit: str = 'sqkm') -> float:
 
     """
-    this function will calculate the square area of a polygon (Kilometers/ Miles)
+    Calculate the square area of a polygon (Kilometers/ Miles)
     :param polygon: Polygon object
     :param unit: sqkm / sqmi
-    :return:
+    :return: area in squared unit
     """
 
     avg_lat, polygon = polygon_to_meters(polygon)  # convert to meters
     polygon_area = np.sqrt(polygon.area) / UNIT_RESOLVER[unit]
-    polygon_area *= polygon_area
+    polygon_area *= polygon_area  # squared
 
     return polygon_area
 
 
 def calc_cluster_density(points: np.array) -> float:
+
     """
+    Takes all points in cluster and compute their density as the inverse of the mean squared distance between them.
     :param points: all points in cluster
     :return: cluster density
     """
 
-    distances = haversine_distances(np.radians(points))
-    mean_squared_distance = np.square(distances).mean()
-    mean_squared_distance_km = mean_squared_distance * R
+    distances = haversine_distances(np.radians(points))  # pairwise haversine distances between all points in cluster
+    mean_squared_distance = np.square(distances).mean()  # mean squared of all distances in cluster
+    mean_squared_distance_km = mean_squared_distance * R  # convert to meters
 
     return 1 / mean_squared_distance_km
 
@@ -140,38 +148,50 @@ def calc_cluster_density(points: np.array) -> float:
 def polygon_intersection(cluster_polygon: Union[Polygon, MultiPolygon], ww_polygons: gpd.GeoDataFrame,
                          type_of_area_mapped: str) -> float:
     """
+    Calculate percent intersection between new cluster polygon and existing ww polygons.
     :param cluster_polygon: polygon from clustering
     :param ww_polygons: df of windward polygons
     :param type_of_area_mapped: ports vs pwa
     :return: geopandas dataframe with extra feature of intersection of polygons with windward's polygons
     """
     # choose relevant type of polygons
-    ww_polygons = ww_polygons[ww_polygons.polygon_area_type == AREA_TYPE_RESOLVER[type_of_area_mapped]]  # filter by the relevant
+    ww_polygons = ww_polygons[ww_polygons.polygon_area_type == AREA_TYPE_RESOLVER[type_of_area_mapped]]
 
     intersection_value = 0
     temp_df = ww_polygons[ww_polygons.intersects(cluster_polygon)]  # find intersection
-    if not temp_df.empty:
-        intersection_value = cluster_polygon.intersection(temp_df.iloc[0]['geometry']).area / cluster_polygon.area * 100 # calculate % of intersection
+    if not temp_df.empty:  # if there is intersection with ww polygons
+        intersection_value = cluster_polygon.intersection(temp_df.iloc[0]['geometry']).area \
+                             / cluster_polygon.area * 100  # calculate % of intersection
 
     return intersection_value
 
 
-def calc_polygon_distance_from_nearest_port(polygon: Union[Polygon, MultiPolygon], ports_df: pd.DataFrame) -> Tuple[float, str]:
-    """takes a polygon and ports df,
-     calculate haversine distances from ports to polygon,
-     returns: the name of nearest port and distance from it"""
-    ports_centroids = ports_df.loc[:, ['lng', 'lat']].to_numpy()
-    polygon_centroid = (polygon.centroid.y, polygon.centroid.x)
-    dists = [haversine(port_centroid, polygon_centroid) for port_centroid in ports_centroids]
-    min_dist = np.min(dists)
-    name_of_nearest_port = ports_df.loc[dists.index(min_dist), 'name']
+def calc_polygon_distance_from_nearest_port(polygon: Union[Polygon, MultiPolygon], ports_df: pd.DataFrame) -> \
+        Tuple[float, str]:
+
+    """
+    Takes a polygon and ports df, calculate haversine distances from ports to polygon,
+    returns the name of nearest port and distance from it.
+    """
+
+    ports_centroids = ports_df.loc[:, ['lng', 'lat']].to_numpy()  # find ports centroids
+    polygon_centroid = (polygon.centroid.y, polygon.centroid.x)  # get polygon centroid
+    dists = [haversine(port_centroid, polygon_centroid) for port_centroid in ports_centroids]  # calculate haversine
+    # distances between polygon and ports
+    min_dist = np.min(dists)  # find minimal distance
+    name_of_nearest_port = ports_df.loc[dists.index(min_dist), 'name']  # find name of port in minimal distance
+
     return min_dist, name_of_nearest_port
 
 
-def filter_points_far_from_port(ports_df: pd.DataFrame, port_name: str, points: np.array, idxs: list) -> Tuple[np.array, list]:
-    """ calculate distance between port and the activity points related to it
-    filters out points that are more than 200km away.
-    used for destination based port waiting area clustering"""
+def filter_points_far_from_port(ports_df: pd.DataFrame, port_name: str, points: np.array, idxs: list,
+                                max_dist: int = 200) -> Tuple[np.array, list]:
+
+    """
+    Calculate distance between port and the activity points related to it, and filter out points that are more than
+    max_dist km (deafult = 200km) away from it.
+    Used for destination based port waiting area clustering.
+    """
 
     if port_name == 'Port Said East':  # fix specific bug in port said port
         port_name = 'Port Said'  # TODO: fix appropriately this bug in port name
@@ -180,18 +200,18 @@ def filter_points_far_from_port(ports_df: pd.DataFrame, port_name: str, points: 
     if port_data.shape[0] > 1:  # fix bug for duplicate port entries
         port_data = port_data[:1]
 
-    port_centroid = (port_data.lat.item(), port_data.lon.item())
-    dists = np.asarray([haversine(port_centroid, loc) for loc in points])
-    good_idxs = idxs[np.where(dists < 200)]
-    points = points[np.where(dists < 200)]
+    port_centroid = (port_data.lat.item(), port_data.lon.item())  # get port centroid
+    dists = np.asarray([haversine(port_centroid, loc) for loc in points])  # get array of all haversine distances
+    good_idxs = idxs[np.where(dists < max_dist)]  # specify indices of points that are less than max_dist away
+    points = points[np.where(dists < max_dist)]  # get points
+
     return points, good_idxs
 
 
 def merge_polygons(geo_df: gpd.GeoDataFrame) -> Union[Polygon, MultiPolygon]:
+
     """
-    this function will merge GeoDataFrame into one Polygon/MultiPolygon Object
-    :param geo_df: GeoDataFrame with Polygons/MultiPolygon
-    :return:
+    Merge GeoDataFrame into one Polygon/MultiPolygon Object.
     """
 
     merged_polygons = gpd.GeoSeries(ops.cascaded_union(geo_df['geometry'])).loc[0]
@@ -202,7 +222,7 @@ def merge_polygons(geo_df: gpd.GeoDataFrame) -> Union[Polygon, MultiPolygon]:
 def calc_nearest_shore(cluster_polygon: Polygon, shoreline_polygon: MultiPolygon, method: str = 'haversine') -> dict:
 
     """
-    this function will calculate nearest point to shoreline layer for a given polygon
+    Calculate nearest point to shoreline layer for a given polygon.
     :param cluster_polygon: Polygon Object from clustering
     :param shoreline_polygon: shoreline layer polygon
     :param method: euclidean / haversine
@@ -235,18 +255,21 @@ def calc_nearest_shore(cluster_polygon: Polygon, shoreline_polygon: MultiPolygon
 
 
 def calc_polygon_distance_from_nearest_ww_polygon(cluster_polygon: Union[Polygon, MultiPolygon], ww_polygons_centroids: np.array) -> float:
-    """takes a polygon and an array of ports centroids
-    and returns the distance in km from the nearest port from the array"""
+
+    """
+    Takes a polygon and an array of ports centroids
+    and returns the distance in km from the nearest port from the array
+    """
     polygon_centroid = (cluster_polygon.centroid.y, cluster_polygon.centroid.x)
     dists = [haversine(ww_poly_centroid, polygon_centroid) for ww_poly_centroid in ww_polygons_centroids]
+
     return np.min(dists)
 
 
 def get_multipolygon_exterior(multipolygon: MultiPolygon) -> list:
+
     """
-    this function will return exterior points of a multipolygon
-    :param multipolygon:
-    :return:
+    Get exterior points of a multipolygon.
     """
     coordinates = []
 
@@ -261,7 +284,7 @@ def get_multipolygon_exterior(multipolygon: MultiPolygon) -> list:
 def polygon_to_wgs84(polygon: Union[Polygon, MultiPolygon], avg_lat: float = None) -> Tuple[float, Union[Polygon,MultiPolygon]]:
 
     """
-    this function will return polygon with wgs84 crs
+    Return polygon with wgs84 crs (coordinate system)
     :param polygon: Polygon object
     :param avg_lat: average latitude value
     :return:
@@ -290,7 +313,7 @@ def polygon_to_wgs84(polygon: Union[Polygon, MultiPolygon], avg_lat: float = Non
 def polygon_to_meters(polygon: Union[Polygon, MultiPolygon], avg_lat: float = None) -> Tuple[float, Union[Polygon,MultiPolygon]]:
 
     """
-    this function will return polygon with meters crs
+    Return polygon with meters crs
     :param polygon: Polygon object
     :param avg_lat: average latitude value
     :return:
@@ -317,16 +340,17 @@ def polygon_to_meters(polygon: Union[Polygon, MultiPolygon], avg_lat: float = No
 
 
 def get_avg_lat(coordinates: list) -> float:
+
     """
-    functions that calculate average latitude for a list of coordinates
-    :param coordinates:
-    :return:
+    Calculate average latitude for a list of coordinates
     """
     s = sum(c[1] for c in coordinates)
+
     return float(s) / len(coordinates)
 
 
-def inflate_polygon(polygon: Union[Polygon, MultiPolygon], meters: Union[int, float], resolution: int = 4) -> Union[Polygon, MultiPolygon]:
+def inflate_polygon(polygon: Union[Polygon, MultiPolygon], meters: Union[int, float], resolution: int = 4) \
+        -> Union[Polygon, MultiPolygon]:
 
     """
     This function will inflate polygon by meters
@@ -378,19 +402,23 @@ def merge_adjacent_polygons(geo_df: gpd.GeoDataFrame, inflation_meter: Union[flo
 
 
 def calc_entropy(feature: pd.Series) -> float:
-    """ takes categorical feature values and returns the column's entropy
-    The maximum value of entropy is log𝑘, where 𝑘 is the number of categories you are using."""
+
+    """
+    Takes categorical feature values and returns the column's entropy.
+    The maximum value of entropy is log𝑘, where 𝑘 is the number of categories you are using.
+    """
     vc = pd.Series(feature).value_counts(normalize=True, sort=False)
+
     return -(vc * np.log(vc) / np.log(math.e)).sum()
 
 
 def create_google_maps_link_to_centroid(centroid: Point) -> str:
-    """
-    :param centroid: Point object
-    :return: google maps link with the location
-    """
 
+    """
+    Get google maps link with the location
+    """
     centroid_lat, centroid_lng = centroid.y, centroid.x
+
     return f'https://maps.google.com/?ll={centroid_lat},{centroid_lng}'
 
 
