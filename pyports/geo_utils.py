@@ -8,21 +8,10 @@ from shapely.ops import nearest_points
 from shapely import ops
 from sklearn.metrics.pairwise import haversine_distances
 import logging
-from tqdm import tqdm
 from kneed import KneeLocator
 from typing import Tuple, Union
 
-# TODO: maybe move to constants.py
-R = 6378.1  # Radius of the Earth
-SQUARE_FOOT_IN_SQUARE_METRE = 10.7639
-
-BRNG_N_E = 1.0472  # 60 degrees converted to radians.
-BRNG_S_W = 4.18879  # 240 degrees converted to radians.
-
-METERS_IN_DEG = 2 * math.pi * 6371000.0 / 360
-
-UNIT_RESOLVER = {'sqmi': 1609.34, 'sqkm': 1000.0}
-AREA_TYPE_RESOLVER = {'pwa': 'PortWaitingArea', 'ports': 'Port'}
+from pyports.constants import R, UNIT_RESOLVER, AREA_TYPE_RESOLVER, METERS_IN_DEG
 
 
 def haversine(lonlat1: Tuple[float, float], lonlat2: Tuple[float, float]):
