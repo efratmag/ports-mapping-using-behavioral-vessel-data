@@ -8,7 +8,7 @@ import pandas as pd
 import pymongo
 from bson import ObjectId
 import logging
-from typing import List, Union
+from typing import List
 
 from pyports.constants import ACTIVITY
 from pyports.get_metadata import get_vessels_info, get_ww_polygons
@@ -32,7 +32,7 @@ def extract_coordinates(df: pd.DataFrame, blip: str) -> pd.DataFrame:
 
 
 def get_activity_df(import_path: str, db: pymongo.MongoClient, vessels_ids: List[str] = None,
-                    activity: ACTIVITY = ACTIVITY.ANCHORING.value, debug: bool = False) -> pd.DataFrame:
+                    activity: ACTIVITY = ACTIVITY.ANCHORING, debug: bool = False) -> pd.DataFrame:
 
     """
     Load the activity data and extract lat lon.
@@ -53,7 +53,7 @@ def get_activity_df(import_path: str, db: pymongo.MongoClient, vessels_ids: List
                               'firstBlip.geometry.coordinates.0': 1, 'firstBlip.geometry.coordinates.1': 1,
                               'lastBlip.geometry.coordinates.0': 1, 'lastBlip.geometry.coordinates.1': 1}
 
-        col = db[activity]
+        col = db[activity.value]
         col = col.find(query, columns_projection).limit(nrows) if nrows else col.find(query, columns_projection)
         activity_df = pd.DataFrame(list(col))
         activity_df = activity_df.rename(columns={'firstBlip.geometry.coordinates.0': 'firstBlip_lon',
@@ -63,7 +63,7 @@ def get_activity_df(import_path: str, db: pymongo.MongoClient, vessels_ids: List
 
     else:
         cols = ['_id', 'firstBlip', 'lastBlip', 'vesselId', 'startDate', 'endDate', 'duration', 'nextPort']
-        activity_file_path = os.path.join(import_path, f'{activity}.csv.gz')
+        activity_file_path = os.path.join(import_path, f'{activity.value}.csv.gz')
         activity_df = pd.read_csv(activity_file_path, nrows=nrows, usecols=cols)
 
         if vessels_ids:
@@ -73,27 +73,27 @@ def get_activity_df(import_path: str, db: pymongo.MongoClient, vessels_ids: List
         activity_df = extract_coordinates(activity_df, 'lastBlip')
         activity_df = activity_df.drop(['firstBlip', 'lastBlip'], axis=1)  # drop nested locations columns
 
-    logging.info(f'{activity} data extracted')
+    logging.info(f'{activity.value} data extracted')
 
     return activity_df
 
 
-def main(export_path: str, activity: Union[ACTIVITY, str] = ACTIVITY.ANCHORING, vessels_ids: str = None,
-         import_path: str = None, use_db: bool = None, debug: bool = False):
+def main(export_path: str, activity_type: str, vessels_ids: str = None, import_path: str = None,
+         use_db: bool = None, debug: bool = False):
 
     """
     Generate dataframe for clustering and save it to export path.
     :param export_path: path in which the output will be exported
-    :param activity: "mooring" / "anchoring"
+    :param activity_type: "mooring" / "anchoring"
     :param import_path: path to directory with all relevant files: polygons.json, vessels.json, anchoring.csv.gz, mooring.csv.gz
     :param vessels_ids: comma-separated string of vessels ids for mongo query
     :param use_db: if True, will use mongo db to query data
     :param debug: if True, only a first 10K rows of each file will be processed for the activity file
     """
 
-    activity = activity.value if isinstance(activity, ACTIVITY) else activity  # parse activity value
+    assert activity_type in ["mooring", "anchoring"], 'activity must be "mooring" or "anchoring"'
+    activity = ACTIVITY(activity_type)
 
-    assert activity in ["mooring", "anchoring"], 'activity must be "mooring" or "anchoring"'
     assert use_db or import_path, "use_db or import_path wasn't passed"
 
     if vessels_ids:
