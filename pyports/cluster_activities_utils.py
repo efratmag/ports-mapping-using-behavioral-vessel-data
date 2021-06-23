@@ -119,8 +119,9 @@ def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str],
         else:
             polygon = polygon_from_points(points, polygon_type, alpha)  # create polygon from points
 
-        record['label'] = f'cluster_{cluster}'  # cluster label
-
+        record['label'] = f'cluster_{int(cluster)}'  # cluster label
+        if type_of_area_mapped == 'pwa':  # get destination port name
+            record['destination_port'] = cluster_df['nextPort_name'].mode()
         record['probs_of_belonging_to_cluster'] = \
             ', '.join(cluster_df['cluster_probability'].astype(str).to_list())  # list of all points probabilities of
         # belonging to the cluster
