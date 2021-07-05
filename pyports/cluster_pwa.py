@@ -18,7 +18,7 @@ def main(import_path: str, export_path: str, activity: Union[ACTIVITY, str] = AC
          blip: str = 'first', type_of_area_mapped: Union[AreaType, str] = AreaType.PORTS_WAITING_AREA,
          only_container_vessels: bool = True, hdbscan_min_cluster_size: int = 20, hdbscan_min_samples: int = 10,
          hdbscan_distance_metric: int = 'haversine', polygon_type: str = 'alpha_shape', polygon_alpha: int = 4,
-         optimize_polygon: bool = False, sub_area_polygon_fname: str = None, save_files: bool = False,
+         optimize_polygon: bool = True, sub_area_polygon_fname: str = None, save_files: bool = False,
          debug: bool = False):
 
     """
