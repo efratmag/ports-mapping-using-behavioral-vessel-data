@@ -119,7 +119,7 @@ def main(export_path: str, activity_type: str, vessels_ids: str = None, import_p
     # fill missing nextPort values with 'unknown'
     final_df = activity_and_nextport_df.nextPort_name.fillna('UNKNOWN')
     # save activity dataframe to csv
-    final_df.to_csv(os.path.join(export_path, f'df_for_clustering_{activity}.csv.gz'), index=False, compression='gzip')
+    final_df.to_csv(os.path.join(export_path, f'df_for_clustering_{activity_type}.csv.gz'), index=False, compression='gzip')
 
 
 if __name__ == "__main__":
