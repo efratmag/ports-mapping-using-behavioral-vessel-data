@@ -61,6 +61,7 @@ def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaTyp
 
     if only_container_vessels:
         df = df[df.vessel_class_new == VesselType.CARGO_CONTAINER.value]  # take only container vessels
+        df.reset_index(drop=True, inplace=True)
 
     ports_df = get_ports_info(import_path, db)
     polygons_df = get_ww_polygons(import_path, db)  # WW polygons
