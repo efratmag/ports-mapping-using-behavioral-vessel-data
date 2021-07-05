@@ -59,9 +59,15 @@ def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaTyp
         df = df.groupby("nextPort_name").filter(lambda x: len(x) > 20)  # take only ports with at least 20 records
         df.reset_index(drop=True, inplace=True)  # reset index  #TODO: FIX!this line does not seem to work!
 
+    if type_of_area_mapped == 'ports':
+        df = df[df.vessel_class_new != 'other']
+        # TODO: generalize vessel class selection
+
     if only_container_vessels:
         df = df[df.vessel_class_new == VesselType.CARGO_CONTAINER.value]  # take only container vessels
         df.reset_index(drop=True, inplace=True)
+
+    df = df.drop_duplicates(subset=['firstBlip_lon', 'firstBlip_lat'])  # drop duplicates
 
     ports_df = get_ports_info(import_path, db)
     polygons_df = get_ww_polygons(import_path, db)  # WW polygons
