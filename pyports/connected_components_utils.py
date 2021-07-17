@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
 import utm
-from tqdm import tqdm
-tqdm.pandas()
+
 
 R = 6378.1e3
 THR = 10000
@@ -96,7 +95,7 @@ def validate_zone(*decargs):
 def get_neighboring_zone_generic(zone_number, zone_letter, border):
     """Get generic neighboring zone."""
 
-    if (zone_letter=="X" and "N" in border) or (zone_letter=="C" and "S" in border):
+    if (zone_letter == "X" and "N" in border) or (zone_letter == "C" and "S" in border):
         return {}
 
     neighbor_borders = []
@@ -112,7 +111,7 @@ def get_neighboring_zone_generic(zone_number, zone_letter, border):
         neighbor_borders.append("N")
 
     if "W" in border:
-        neighbor_number = 60 if zone_number==1 else zone_number - 1
+        neighbor_number = 60 if zone_number == 1 else zone_number - 1
         neighbor_borders.append("E")
 
     if "E" in border:
