@@ -12,19 +12,21 @@ Lastly polygons are created from these clusters and their features are extracted
 from scipy.spatial import cKDTree
 from pyports.cluster_activities_utils import *
 from pyports.connected_components_utils import *
+from pyports.geo_utils import is_in_river
 from pyports.constants import ACTIVITY, AreaType
 from typing import Union
 import time
 import pathlib
-import tqdm
 import fire
+from tqdm import tqdm
+tqdm.pandas()
 
 
 def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[ACTIVITY, str] = ACTIVITY.MOORING,
-         blip: str = 'first', type_of_area_mapped: Union[AreaType, str] = AreaType.PORTS, epsilon: str = 10000,
-         only_container_vessels: bool = False, polygon_type: str = 'alpha_shape', polygon_alpha: int = 4,
-         optimize_polygon: bool = False, sub_area_polygon_fname: str = None, save_files: bool = False,
-         debug: bool = False):
+         blip: str = 'first', type_of_area_mapped: Union[AreaType, str] = AreaType.PORTS,
+         filter_river_points: bool = True, epsilon: str = 10000, only_container_vessels: bool = False,
+         polygon_type: str = 'alpha_shape', polygon_alpha: int = 4, optimize_polygon: bool = False,
+         sub_area_polygon_fname: str = None, save_files: bool = False, debug: bool = False):
 
     """
     :param import_path: path to all used files.
@@ -32,6 +34,7 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
     :param activity: default: 'mooring' (for ports).
     :param blip: 'first' or 'last'.
     :param type_of_area_mapped: ports.
+    :param filter_river_points: filter points in rivers. default: True.
     :param epsilon: radius for neighbors definition. default: 10,000 (10 km).
     :param only_container_vessels: use only container vessels for pwa mapping. default: True.
     :param polygon_type: 'alpha_shape' or 'convexhull'.
@@ -51,10 +54,11 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
 
     logging.info('preprocessing data...')
 
-    locations = df[[f'{blip}Blip_lat', f'{blip}Blip_lon']].rename(
-        columns={f'{blip}Blip_lat': 'lat', f'{blip}Blip_lon': 'lon'})
-
-    # TODO: remove points in rivers
+    locations = df[[f'{blip}Blip_lat', f'{blip}Blip_lon']].rename({f'{blip}Blip_lat': 'lat', f'{blip}Blip_lon': 'lon'},
+                                                                  axis=1).reset_index(drop=True)
+    if filter_river_points:
+        river_mask = is_in_river(locations, main_land)
+        locations = locations[river_mask]
 
     # get locations_utm - projections of lat lon to utm coordinates
     if not import_path.joinpath("locations_utm.csv").exists():
@@ -101,7 +105,7 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
 
     kdtrees = {}
 
-    for zone, zone_locations in tqdm.tqdm(zone_grp, total=len(zone_grp.groups)):
+    for zone, zone_locations in tqdm(zone_grp, total=len(zone_grp.groups)):
         zn, zl = zone
         zone_mask = (locations_utm.zone_number == zn) & (locations_utm.zone_letter == zl)
         tree = cKDTree(locations_utm.loc[zone_mask, ["easting", "northing"]].values)
