@@ -9,6 +9,7 @@ from shapely import ops
 from sklearn.metrics.pairwise import haversine_distances
 import logging
 from kneed import KneeLocator
+import utm
 from typing import Tuple, Union
 
 from pyports.constants import R, UNIT_RESOLVER, AREA_TYPE_RESOLVER, METERS_IN_DEG
@@ -471,3 +472,12 @@ def optimize_polygon_by_probs(points: np.array, probs: np.array, polygon_type: s
         points_removed = 0
 
     return poly, original_polygon, kneedle.knee, points_removed, metrics
+
+
+def get_utm(lat, lon):
+    """Calculate UTM coordinates latitude and longitude."""
+
+    easting, northing, zone_number, zone_letter = utm.from_latlon(lat, lon)
+    return pd.Series([easting, northing, zone_number, zone_letter],
+                     index=["easting", "northing", "zone_number", "zone_letter"])
+
