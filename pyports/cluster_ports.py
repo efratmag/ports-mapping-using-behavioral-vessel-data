@@ -1,9 +1,12 @@
 """
-Cluster ports waiting areas (pwa).
-Takes only anchoring activity and only container vessels, and cluster ports waiting areas by destination.
-For each destination port, first find anchoring container vessels that were heading to it (i.e. had this
-port as their NextPort) and are less than 200km away from it. Then cluster them with hdbscan min_cluster_size:20,
-min_samples:10. Lastly create polygons from these clusters and extract their features.
+Cluster ports.
+Takes only mooring activity and only cargo and tanker vessels, and cluster ports with growing connected components.
+First, all points are projected to UTM zones and features regarding points location are extracted (e.g. whether a point
+is in border zone - less than threshold (epsilon) away from utm border).
+Then a cKDtree is built to estimate neighbors.
+Then all points are initialized as noise (i.e. unmarked), and seeds are randomly selected iteratively and their
+neighboring points are assigned to their cluster. The process finishes when all points are visited.
+Lastly polygons are created from these clusters and their features are extracted.
 """
 
 from scipy.spatial import cKDTree
