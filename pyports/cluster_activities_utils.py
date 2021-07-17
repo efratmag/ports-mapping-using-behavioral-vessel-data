@@ -47,6 +47,7 @@ def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaTyp
 
     nrows = 10000 if debug else None  # will load first 10K rows if debug == True
 
+    # TODO: need to add condition to generate df_for_clustering if not exist
     df = pd.read_csv(os.path.join(import_path, df_for_clustering_fname), low_memory=False, nrows=nrows)
 
     if sub_area_polygon_fname:  # take only area of the data, e.g. 'maps/mediterranean.geojson'
