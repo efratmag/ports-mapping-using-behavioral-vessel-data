@@ -11,6 +11,8 @@ from sklearn.metrics.pairwise import haversine_distances
 import logging
 from kneed import KneeLocator
 from typing import Tuple, Union
+from tqdm import tqdm
+tqdm.pandas()
 
 
 def haversine(lonlat1: Tuple[float, float], lonlat2: Tuple[float, float]) -> float:
@@ -470,3 +472,15 @@ def optimize_polygon_by_probs(points: np.array, probs: np.array, polygon_type: s
         points_removed = 0
 
     return poly, original_polygon, kneedle.knee, points_removed, metrics
+
+
+def is_in_river(locations: pd.DataFrame, main_land: MultiPolygon) -> pd.Series:
+    """
+    gets dataframe of lat lon locations and extracts for each point if in river (boolean).
+    used for later filtering, i.e. to remove river moorings from ports clustering.
+    NOTE: this is a highly time consuming step
+    """
+    #TODO: optimize to run faster
+    locs_gpd = gpd.GeoDataFrame(locations, geometry=gpd.points_from_xy(locations.lon, locations.lat, crs="EPSG:4326"))
+    return locs_gpd.loc[:, 'geometry'].progress_apply(lambda x: main_land.contains(x))
+
