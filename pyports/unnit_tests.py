@@ -25,16 +25,16 @@ TEST_COORDINATES_C = ((-113.675537109375, 31.052933985705163),
                       (-114.32647705078125, 30.327842001072675),
                       (-113.675537109375, 31.052933985705163))
 
-TEST_COORDINATES_WGS84 = ((0.0003683192396992287, 0.00028896751859461425),
-                          (0.0003692712046193283, 0.00028896751859461425),
-                          (0.0003692712046193283, 0.000289712353632895),
-                          (0.0003683192396992287, 0.000289712353632895),
-                          (0.0003683192396992287, 0.00028896751859461425))
+TEST_COORDINATES_METERS = ((3263387.947548054, 3572884.4743992453),
+                           (3271822.562175513, 3572884.4743992453),
+                           (3271822.562175513, 3582093.846986187),
+                           (3263387.947548054, 3582093.846986187),
+                           (3263387.947548054, 3572884.4743992453))
 
 TEST_POLYGON_A = Polygon(TEST_COORDINATES_A)
 TEST_POLYGON_B = Polygon(TEST_COORDINATES_B)
 TEST_POLYGON_C = Polygon(TEST_COORDINATES_C)  # polygons A & C intersects
-TEST_POLYGON_WGS84 = Polygon(TEST_COORDINATES_WGS84)  # polygons A & WGS84 are identical (on different CRS)
+TEST_POLYGON_METERS = Polygon(TEST_COORDINATES_METERS)  # polygons A & WGS84 are identical (on different CRS)
 
 TEST_GEO_DF = gpd.GeoDataFrame([{"geometry": TEST_POLYGON_A, "polygon_area_type": "PortWaitingArea"},
                                {"geometry": TEST_POLYGON_B, "polygon_area_type": "Port"}])
@@ -142,11 +142,11 @@ class TestGetMultipolygonExterior(unittest.TestCase):
 class TestPolygonToWgs84(unittest.TestCase):
 
     def test_polygon_to_wgs84(self):
-        _, wgs84_polygon = polygon_to_wgs84(TEST_POLYGON_A)
-        self.assertNotEqual(wgs84_polygon, TEST_POLYGON_A,
+        _, wgs84_polygon = polygon_to_wgs84(TEST_POLYGON_METERS)
+        self.assertNotEqual(wgs84_polygon, TEST_POLYGON_METERS,
                             "polygon_to_wgs84 was not performed properly - the polygon was not changed")
-        self.assertAlmostEqual(wgs84_polygon.centroid.y, 0.0002893, 6,
+        self.assertAlmostEqual(wgs84_polygon.centroid.y, 32.173132971, 6,
                                "polygon_to_wgs84 was not performed properly - wrong centroid latitude")
-        self.assertAlmostEqual(wgs84_polygon.centroid.x, 0.0003687, 6,
+        self.assertAlmostEqual(wgs84_polygon.centroid.x, 34.567696060, 6,
                                "polygon_to_wgs84 was not performed properly - wrong centroid latitude")
 
