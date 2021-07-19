@@ -1,4 +1,4 @@
-from pyports.constants import R, UNIT_RESOLVER, AREA_TYPE_RESOLVER, METERS_IN_DEG
+from pyports.constants import *
 import math
 import pandas as pd
 from shapely.geometry import shape, MultiLineString, Polygon, MultiPolygon, MultiPoint, Point
