@@ -4,7 +4,7 @@ import utm
 
 
 R = 6378.1e3
-THR = 10000
+#THR = 10000
 ZONE_EXCEPTIONS = ["31V", "32V", "31X", "33X", "35X", "37X"]
 ZONE_LETTERS = "CDEFGHJKLMNPQRSTUVWXX"
 ALLOWED_BORDERS = ["N", "S", "W", "E", "NW", "NE", "SW", "SE"]
