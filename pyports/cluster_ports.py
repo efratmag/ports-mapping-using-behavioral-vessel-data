@@ -56,9 +56,18 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
 
     locations = df[[f'{blip}Blip_lat', f'{blip}Blip_lon']].rename({f'{blip}Blip_lat': 'lat', f'{blip}Blip_lon': 'lon'},
                                                                   axis=1).reset_index(drop=True)
+
+# TODO: for all exists file inspections- make sure the file checked is per running time
+    # filter out points in rivers
     if filter_river_points:
-        river_mask = is_in_river(locations, main_land)
-        locations = locations[river_mask]
+        if not import_path.joinpath("river_mask_mooring.csv").exists():
+            river_mask = is_in_river(locations, main_land)
+            river_mask.to_csv(os.path.join(import_path, 'river_mask_mooring.csv'))
+        else:
+            river_mask = pd.read_csv(import_path.joinpath('river_mask_mooring.csv'))
+        locations = locations[np.invert(river_mask)]  # take only ports where in_river == False
+        print(f'removed {np.sum(river_mask)} points that lay in rivers ('
+              f'{np.sum(river_mask) / locations.shape[0] *100:.2f}% of the data).')
 
     # get locations_utm - projections of lat lon to utm coordinates
     if not import_path.joinpath("locations_utm.csv").exists():
