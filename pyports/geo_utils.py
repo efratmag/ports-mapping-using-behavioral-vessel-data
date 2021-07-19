@@ -474,13 +474,14 @@ def optimize_polygon_by_probs(points: np.array, probs: np.array, polygon_type: s
     return poly, original_polygon, kneedle.knee, points_removed, metrics
 
 
-def is_in_river(locations: pd.DataFrame, main_land: MultiPolygon) -> pd.Series:
+def is_in_river(locations: pd.DataFrame, main_land: MultiPolygon) -> list:
     """
     gets dataframe of lat lon locations and extracts for each point if in river (boolean).
+    return a list of booleans.
     used for later filtering, i.e. to remove river moorings from ports clustering.
     NOTE: this is a highly time consuming step
     """
-    #TODO: optimize to run faster
+    # TODO: optimize to run faster with parallelization
     locs_gpd = gpd.GeoDataFrame(locations, geometry=gpd.points_from_xy(locations.lon, locations.lat, crs="EPSG:4326"))
-    return locs_gpd.loc[:, 'geometry'].progress_apply(lambda x: main_land.contains(x))
+    return locs_gpd.loc[:, 'geometry'].progress_apply(lambda x: main_land.contains(x)).to_list()
 
