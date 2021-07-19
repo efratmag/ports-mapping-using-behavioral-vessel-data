@@ -201,6 +201,44 @@ def is_border(lat, lon, zone_number, zone_letter, thr):
     return pd.Series(border_status).astype(int)
 
 
+def preprocess_for_connected_components(import_path, df, blip, main_land, filter_river_points, epsilon):
+
+    locations = df[[f'{blip}Blip_lat', f'{blip}Blip_lon']].rename({f'{blip}Blip_lat': 'lat', f'{blip}Blip_lon': 'lon'},
+                                                                  axis=1).reset_index(drop=True)
+
+    # TODO: for all exists file inspections- make sure the file checked is per running time
+    # filter out points in rivers
+    if filter_river_points:
+        if not import_path.joinpath("river_mask_mooring.csv").exists():
+            river_mask = is_in_river(locations, main_land)
+            river_mask.to_csv(os.path.join(import_path, 'river_mask_mooring.csv'))
+        else:
+            river_mask = pd.read_csv(import_path.joinpath('river_mask_mooring.csv'))
+        locations = locations[np.invert(river_mask)]  # take only ports where in_river == False
+        print(f'removed {np.sum(river_mask)} points that lay in rivers ('
+              f'{np.sum(river_mask) / locations.shape[0] *100:.2f}% of the data).')
+
+    # get locations_utm - projections of lat lon to utm coordinates
+    if not import_path.joinpath("locations_preprocessed.csv").exists():
+        # get utm zone
+        locations_utm = locations.progress_apply(lambda row: get_utm(row.lat, row.lon), axis=1)
+        # get zone feature by combining utm number and letter
+        locations_utm["zone"] = locations_utm.apply(lambda row: f"{row.zone_number}{row.zone_letter}", axis=1)
+        # get borders- a boolean  indicating if a point is close to a utm zone border (dist<epsilon from border)
+        border_statuses = locations_utm.progress_apply(lambda row: is_border(row.lat,
+                                                                             row.lon,
+                                                                             row.zone_number,
+                                                                             row.zone_letter, epsilon),
+                                                       axis=1)
+        locations_preprocessed = locations_utm.join(border_statuses)
+
+        locations_preprocessed.to_csv(import_path.joinpath("locations_preprocessed.csv"), index=False)
+    else:
+        locations_preprocessed = pd.read_csv(import_path.joinpath("locations_preprocessed.csv"))
+
+    return locations_preprocessed
+
+
 def get_in_zone_distances(loc, locs):
     """Calculate distances between `loc` and all location in `locs` in the same zone."""
     return np.sqrt(np.square(locs[["easting", "northing"]] - loc[["easting", "northing"]]).sum(axis=1))
