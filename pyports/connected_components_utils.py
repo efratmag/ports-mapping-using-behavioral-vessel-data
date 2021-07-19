@@ -169,15 +169,15 @@ def preprocess_for_connected_components(import_path: pathlib.Path, df: pd.DataFr
         else:
             river_mask = pd.read_csv(import_path.joinpath('river_mask_mooring.csv'))
         locations = locations[np.invert(river_mask)]  # take only ports where in_river == False
-        print(f'removed {np.sum(river_mask)} points that lay in rivers ('
-              f'{np.sum(river_mask) / locations.shape[0] *100:.2f}% of the data).')
+        #logging.info(f'removed {np.sum(river_mask)} points that lay in rivers ({np.sum(river_mask) / locations.shape[0] * 100:.2f}% of the data).')
 
     # get locations_utm - projections of lat lon to utm coordinates
     if not import_path.joinpath("locations_preprocessed.csv").exists():
         # get utm zone
         locations_utm = locations.progress_apply(lambda row: get_utm(row.lat, row.lon), axis=1)
+        locations_utm = locations_utm.join(locations)
         # get zone feature by combining utm number and letter
-        locations_utm["zone"] = locations_utm.apply(lambda row: f"{row.zone_number}{row.zone_letter}", axis=1)
+        locations_utm["zone"] = locations_utm.progress_apply(lambda row: f"{row.zone_number}{row.zone_letter}", axis=1)
         # get borders- a boolean  indicating if a point is close to a utm zone border (dist<epsilon from border)
         border_statuses = locations_utm.progress_apply(lambda row: is_border(row.lat,
                                                                              row.lon,
@@ -186,7 +186,14 @@ def preprocess_for_connected_components(import_path: pathlib.Path, df: pd.DataFr
                                                        axis=1)
         locations_preprocessed = locations_utm.join(border_statuses)
 
+        # get sub zones by dividing easting/northing by epsiloneshold
+        locations_preprocessed["cell_x"] = (locations_preprocessed["easting"] / thr).astype(int)
+        locations_preprocessed["cell_y"] = (locations_preprocessed["northing"] / thr).astype(int)
+        # sum up all four borders' boolean to one general indicator of whether a point is in border zone
+        locations_preprocessed["border"] = (locations_preprocessed[["N", "E", "S", "W"]].sum(axis=1)!=0).astype(int)
+
         locations_preprocessed.to_csv(import_path.joinpath("locations_preprocessed.csv"), index=False)
+
     else:
         locations_preprocessed = pd.read_csv(import_path.joinpath("locations_preprocessed.csv"))
 
