@@ -61,17 +61,11 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
     # initializations
     locs = locations_preprocessed.copy()
     locs["component"] = -1  # initialize all points as unmarked (i.e noise by default)
-    # get sub zones by dividing easting/northing by epsiloneshold
-    locs["cell_x"] = (locs["easting"] / epsilon).astype(int)
-    locs["cell_y"] = (locs["northing"] / epsilon).astype(int)
-    # sum up all four borders' boolean to one general indicator of whether a point is in border zone
-    locs["border"] = (locs[["N", "E", "S", "W"]].sum(axis=1)!=0).astype(int)
-
     current_cid = -1
     components = {}
     timings = []
 
-    # build kdTrees
+    # build kdTrees per zone
 
     zone_grp = locs.groupby(["zone_number", "zone_letter"])
 
