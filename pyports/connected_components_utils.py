@@ -1,56 +1,8 @@
-import numpy as np
-import pandas as pd
+from pyports.geo_utils import *
 import utm
+import pathlib
 
-
-R = 6378.1e3
-#THR = 10000
-ZONE_EXCEPTIONS = ["31V", "32V", "31X", "33X", "35X", "37X"]
-ZONE_LETTERS = "CDEFGHJKLMNPQRSTUVWXX"
-ALLOWED_BORDERS = ["N", "S", "W", "E", "NW", "NE", "SW", "SE"]
-SPECIAL_BORDERS = {"31V": {"NE": {(31, "W"): ["S"]},
-                           "SE": {(31, "U"): ["N"]}},
-                   "32V": {"NW": {(31, "W"): ["S"]},
-                           "SW": {(31, "U"): ["N"]},
-                           "N": {(31, "W"): ["S"], (32, "W"): ["S"]},
-                           "S": {(31, "U"): ["N"], (32, "U"): ["N"]}},
-                   "31U": {"N": {(31, "V"): ["S"], (32, "V"): ["S"]},
-                           "NE": {(32, "V"): ["S"]}},
-                   "32U": {"NW": {(32, "V"): ["S"]}},
-                   "31W": {"NE": {(31, "X"): ["S"]},
-                           "S": {(31, "V"): ["N"], (32, "V"): ["N"]},
-                           "SE": {(32, "V"): ["N"]}},
-                   "32W": {"SW": {(32, "V"): ["N"]},
-                           "N": {(31, "X"): ["S"], (33, "X"): ["S"]},
-                           "NE": {(33, "X"): ["S"]}},
-                   "33W": {"NW": {(33, "X"): ["S"]},
-                           "N": {(33, "X"): ["S"]},
-                           "NE": {(33, "X"): ["S"]}},
-                   "34W": {"NW": {(33, "X"): ["S"]},
-                           "N": {(33, "X"): ["S"], (35, "X"): ["S"]},
-                           "NE": {(35, "X"): ["S"]}},
-                   "35W": {"NW": {(35, "X"): ["S"]},
-                           "N": {(35, "X"): ["S"]},
-                           "NE": {(35, "X"): ["S"]}},
-                   "36W": {"NW": {(35, "X"): ["S"]},
-                           "N": {(35, "X"): ["S"], (37, "X"): ["S"]},
-                           "NE": {(37, "X"): ["S"]}},
-                   "37W": {"NW": {(35, "X"): ["S"]},
-                           "N": {(37, "X"): ["S"]}},
-                   "31X": {"S": {(31, "W"): ["N"]},
-                           "SE": {(32, "W"): ["S"]},
-                           "E": {(33, "X"): ["W"]}},
-                   "33X": {"S": {(32, "W"): ["N"], (33, "W"): ["N"], (34, "W"): ["N"]},
-                           "SW": {(32, "W"): ["N"]},
-                           "SE": {(34, "W"): ["N"]},
-                           "E": {(35, "X"): ["W"]}},
-                   "35X": {"S": {(34, "W"): ["N"], (35, "W"): ["N"], (36, "W"): ["N"]},
-                           "SW": {(34, "W"): ["N"]},
-                           "SE": {(36, "W"): ["N"]},
-                           "E": {(37, "X"): ["W"]}},
-                   "37X": {"S": {(36, "W"): ["N"], (37, "W"): ["N"]},
-                           "SW": {(36, "W"): ["N"]}}
-                   }
+R = R * 10**3  # adjusting earth radius units to current code # TODO:
 
 
 def get_utm(lat, lon):
@@ -201,7 +153,9 @@ def is_border(lat, lon, zone_number, zone_letter, thr):
     return pd.Series(border_status).astype(int)
 
 
-def preprocess_for_connected_components(import_path, df, blip, main_land, filter_river_points, epsilon):
+def preprocess_for_connected_components(import_path: pathlib.Path, df: pd.DataFrame, blip: str, main_land: MultiPolygon,
+                                        filter_river_points: bool, thr: int) -> pd.DataFrame:
+    """ preprocess data: filter out river points (optional), project to utm zones and extract borders info"""
 
     locations = df[[f'{blip}Blip_lat', f'{blip}Blip_lon']].rename({f'{blip}Blip_lat': 'lat', f'{blip}Blip_lon': 'lon'},
                                                                   axis=1).reset_index(drop=True)
@@ -211,7 +165,7 @@ def preprocess_for_connected_components(import_path, df, blip, main_land, filter
     if filter_river_points:
         if not import_path.joinpath("river_mask_mooring.csv").exists():
             river_mask = is_in_river(locations, main_land)
-            river_mask.to_csv(os.path.join(import_path, 'river_mask_mooring.csv'))
+            river_mask.to_csv(import_path.joinpath('river_mask_mooring.csv'))
         else:
             river_mask = pd.read_csv(import_path.joinpath('river_mask_mooring.csv'))
         locations = locations[np.invert(river_mask)]  # take only ports where in_river == False
@@ -228,7 +182,7 @@ def preprocess_for_connected_components(import_path, df, blip, main_land, filter
         border_statuses = locations_utm.progress_apply(lambda row: is_border(row.lat,
                                                                              row.lon,
                                                                              row.zone_number,
-                                                                             row.zone_letter, epsilon),
+                                                                             row.zone_letter, thr),
                                                        axis=1)
         locations_preprocessed = locations_utm.join(border_statuses)
 
@@ -256,7 +210,7 @@ def get_in_zone_neighbors_kdtree(loc, tree, thr):
     """Calculate neighbors of `loc` in the same zone."""
 
     tree_elements, tree = tree
-    neighbors = tree.query_ball_point(loc[["easting", "northing"]], THR)
+    neighbors = tree.query_ball_point(loc[["easting", "northing"]], thr)
 
     return tree_elements[neighbors]
 
