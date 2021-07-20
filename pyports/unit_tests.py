@@ -150,3 +150,11 @@ class TestPolygonToWgs84(unittest.TestCase):
         self.assertAlmostEqual(wgs84_polygon.centroid.x, 34.567696060, 6,
                                "polygon_to_wgs84 was not performed properly - wrong centroid latitude")
 
+
+class TestPolygonToMeters(unittest.TestCase):
+
+    def test_polygon_to_meters(self):
+        _, meters_polygon = polygon_to_meters(TEST_POLYGON_A)
+
+        self.assertEqual(meters_polygon, TEST_POLYGON_METERS,
+                         "polygon_to_meters was not performed properly - wrong polygon")
