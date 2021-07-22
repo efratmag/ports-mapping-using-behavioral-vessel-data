@@ -155,8 +155,11 @@ def is_border(lat, lon, zone_number, zone_letter, thr):
 
 
 def preprocess_for_connected_components(import_path: pathlib.Path, df: pd.DataFrame, blip: str, main_land: MultiPolygon,
-                                        filter_river_points: bool, thr: int) -> pd.DataFrame:
-    """ preprocess data: filter out river points (optional), project to utm zones and extract borders info"""
+                                        filter_river_points: bool, thr: int) -> Tuple(pd.DataFrame, list):
+    """
+    preprocess data: filter out river points (optional), project to utm zones and extract borders info.
+    returns dataframe for connected components and a list of river mask.
+    """
 
     locations = df[[f'{blip}Blip_lat', f'{blip}Blip_lon']].rename({f'{blip}Blip_lat': 'lat', f'{blip}Blip_lon': 'lon'},
                                                                   axis=1).reset_index(drop=True)
@@ -202,7 +205,7 @@ def preprocess_for_connected_components(import_path: pathlib.Path, df: pd.DataFr
     else:
         locations_preprocessed = pd.read_csv(import_path.joinpath("locations_preprocessed.csv"))
 
-    return locations_preprocessed
+    return locations_preprocessed, river_mask
 
 
 def get_in_zone_distances(loc, locs):
