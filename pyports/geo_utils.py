@@ -175,7 +175,7 @@ def calc_polygon_distance_from_nearest_port(polygon: Union[Polygon, MultiPolygon
     returns the name of nearest port and distance from it.
     """
 
-    ports_centroids = ports_df.loc[:, ['lng', 'lat']].to_numpy()  # find ports centroids
+    ports_centroids = ports_df.loc[:, ['lon', 'lat']].to_numpy()  # find ports centroids
     polygon_centroid = (polygon.centroid.y, polygon.centroid.x)  # get polygon centroid
     dists = [haversine(port_centroid, polygon_centroid) for port_centroid in ports_centroids]  # calculate haversine
     # distances between polygon and ports
