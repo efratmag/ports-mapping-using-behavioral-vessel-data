@@ -158,14 +158,14 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
     logging.info('finished post processing of components!')
 
     # polygenize clusters and extract features of interest
-    ports_waiting_areas_polygons = polygenize_clusters_with_features(type_of_area_mapped, df, polygons_df, main_land,
+    ports_polygons = polygenize_clusters_with_features(type_of_area_mapped, df, polygons_df, main_land,
                                                                      blip, optimize_polygon, polygon_alpha,
                                                                      polygon_type, only_container_vessels)
 
     # save results
     if save_files:
         logging.info('saving files...')
-        save_data(type_of_area_mapped, ports_waiting_areas_polygons, export_path)
+        save_data(type_of_area_mapped, ports_polygons, export_path)
 
 
 if __name__ == "__main__":
