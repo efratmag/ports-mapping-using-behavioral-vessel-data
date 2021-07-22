@@ -58,7 +58,7 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
 
     logging.info('preprocessing data...')
 
-    locations_preprocessed = preprocess_for_connected_components(import_path, df, blip, main_land, filter_river_points,
+    locations_preprocessed, river_mask = preprocess_for_connected_components(import_path, df, blip, main_land, filter_river_points,
                                                                  epsilon)
 
     logging.info('starting growing connected components...')
@@ -133,32 +133,34 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
 
     logging.info('starting post processing of components...')
 
-    # remove small components
-    locs_pp = locs.groupby('component').filter(lambda x: len(x) > 20).reset_index(drop=True)
-
     # hdbscan clustering on each component
+    locs.reset_index(drop=True, inplace=True)
+    df_sub = df[np.invert(river_mask)].reset_index(drop=True)
     num_clusters = 0
-    for i, comp in enumerate(tqdm(locs_pp.component.unique())):
-        idxs = locs_pp.index[locs_pp.component == comp]
-        sub_locs = locs_pp.loc[idxs, ['lat', 'lon']].to_numpy()
-        clusterer = hdbscan.HDBSCAN(min_cluster_size=hdbscan_min_cluster_size,
-                                    min_samples=hdbscan_min_samples,
-                                    metric=hdbscan_distance_metric)
-        clusterer.fit(sub_locs)
-        locs_pp.loc[idxs, 'cluster_probability'] = clusterer.probabilities_
-        if i == 0:
-            locs_pp.loc[idxs, 'cluster_label'] = clusterer.labels_
-            num_clusters = clusterer.labels_.max() + 1
-        else:
-            cluster_labels = np.where(clusterer.labels_ > -1, clusterer.labels_ + num_clusters,
-                                      clusterer.labels_)
-            locs_pp.loc[idxs, 'cluster_label'] = cluster_labels
-            num_clusters += clusterer.labels_.max() + 1
+    for i, comp in enumerate(tqdm(locs.component.unique())):
+        idxs = locs.index[locs.component == comp]
+        sub_locs = locs.loc[idxs, ['lat', 'lon']].to_numpy()
+        if sub_locs.shape[0] > 20:  # if enough points left
+            clusterer = hdbscan.HDBSCAN(min_cluster_size=hdbscan_min_cluster_size,
+                                        min_samples=hdbscan_min_samples,
+                                        metric=hdbscan_distance_metric)
+            clusterer.fit(sub_locs)
+            df_sub.loc[idxs, 'cluster_probability'] = clusterer.probabilities_
+            if i == 0:
+                df_sub.loc[idxs, 'cluster_label'] = clusterer.labels_
+                num_clusters = clusterer.labels_.max() + 1
+            else:
+                cluster_labels = np.where(clusterer.labels_ > -1, clusterer.labels_ + num_clusters,
+                                          clusterer.labels_)
+                df_sub.loc[idxs, 'cluster_label'] = cluster_labels
+                num_clusters += clusterer.labels_.max() + 1
+
+        df_sub.cluster_label.fillna(value=-1, inplace=True)  # fill labels of missing values as noise
 
     logging.info('finished post processing of components!')
 
     # polygenize clusters and extract features of interest
-    ports_polygons = polygenize_clusters_with_features(type_of_area_mapped, df, polygons_df, main_land,
+    ports_polygons = polygenize_clusters_with_features(type_of_area_mapped, df_sub, polygons_df, main_land,
                                                                      blip, optimize_polygon, polygon_alpha,
                                                                      polygon_type, only_container_vessels)
 
