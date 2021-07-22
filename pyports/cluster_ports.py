@@ -10,6 +10,7 @@ Lastly polygons are created from these clusters and their features are extracted
 """
 
 from scipy.spatial import cKDTree
+import hdbscan
 from pyports.cluster_activities_utils import *
 from pyports.connected_components_utils import *
 from pyports.constants import ACTIVITY, AreaType
@@ -24,6 +25,7 @@ tqdm.pandas()
 def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[ACTIVITY, str] = ACTIVITY.MOORING,
          blip: str = 'first', type_of_area_mapped: Union[AreaType, str] = AreaType.PORTS,
          filter_river_points: bool = True, epsilon: int = 10000, only_container_vessels: bool = False,
+         hdbscan_min_cluster_size: int = 30, hdbscan_min_samples: int = 5, hdbscan_distance_metric: int = 'haversine',
          polygon_type: str = 'alpha_shape', polygon_alpha: int = 4, optimize_polygon: bool = False,
          sub_area_polygon_fname: str = None, save_files: bool = False, debug: bool = False):
 
@@ -36,6 +38,9 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
     :param filter_river_points: filter points in rivers. default: True.
     :param epsilon: radius for neighbors definition. default: 10,000 (10 km).
     :param only_container_vessels: use only container vessels for pwa mapping. default: True.
+    :param hdbscan_min_cluster_size: hdbscan min_cluster_size hyper parameter (30 for mooring).
+    :param hdbscan_min_samples: hdbscan min_samples hyper parameter (5 for mooring).
+    :param hdbscan_distance_metric: hdbscan distance_metric hyper parameter.
     :param polygon_type: 'alpha_shape' or 'convexhull'.
     :param polygon_alpha: parameter for 'alpha_shape'- degree of polygon segregation.
     :param optimize_polygon: if True, will apply optimize_polygon.
@@ -126,8 +131,31 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
 
     logging.info('finished growing connected components!')
 
+    logging.info('starting post processing of components...')
 
-    # TODO: cluster on top
+    # remove small components
+    locs_pp = locs.groupby('component').filter(lambda x: len(x) > 20).reset_index(drop=True)
+
+    # hdbscan clustering on each component
+    num_clusters = 0
+    for i, comp in enumerate(tqdm(locs_pp.component.unique())):
+        idxs = locs_pp.index[locs_pp.component == comp]
+        sub_locs = locs_pp.loc[idxs, ['lat', 'lon']].to_numpy()
+        clusterer = hdbscan.HDBSCAN(min_cluster_size=hdbscan_min_cluster_size,
+                                    min_samples=hdbscan_min_samples,
+                                    metric=hdbscan_distance_metric)
+        clusterer.fit(sub_locs)
+        locs_pp.loc[idxs, 'cluster_probability'] = clusterer.probabilities_
+        if i == 0:
+            locs_pp.loc[idxs, 'cluster_label'] = clusterer.labels_
+            num_clusters = clusterer.labels_.max() + 1
+        else:
+            cluster_labels = np.where(clusterer.labels_ > -1, clusterer.labels_ + num_clusters,
+                                      clusterer.labels_)
+            locs_pp.loc[idxs, 'cluster_label'] = cluster_labels
+            num_clusters += clusterer.labels_.max() + 1
+
+    logging.info('finished post processing of components!')
 
     # polygenize clusters and extract features of interest
     ports_waiting_areas_polygons = polygenize_clusters_with_features(type_of_area_mapped, df, polygons_df, main_land,
