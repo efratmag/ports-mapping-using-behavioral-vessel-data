@@ -79,16 +79,17 @@ def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaTyp
 
 
 def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str], df_for_clustering: pd.DataFrame,
-                                      polygons_df: gpd.GeoDataFrame, main_land: MultiPolygon, blip: str,
-                                      optimize_polygon: bool, alpha: int, polygon_type: str,
+                                      polygons_df: gpd.GeoDataFrame, ports_df: pd.DataFrame, main_land: MultiPolygon,
+                                      blip: str, optimize_polygon: bool, alpha: int, polygon_type: str,
                                       shoreline_distance_method: str = 'haversine',
-                                      shoreline_polygon: MultiPolygon = None, ports_df: pd.DataFrame = None,
+                                      shoreline_polygon: MultiPolygon = None,
                                       only_container_vessels: bool = None) -> gpd.GeoDataFrame:
 
     """
     :param type_of_area_mapped: 'ports' or 'pwa' (ports waiting areas).
     :param df_for_clustering: activities dataframe with clustering results.
     :param polygons_df: dataframe of WW polygons.
+    :param ports_df: dataframe of WW ports. only relevant if type_of_area_mapped=='ports'.
     :param main_land: multi-polygon of the main continents.
     :param blip: as in main- 'first' or 'last'.
     :param optimize_polygon: if True, will apply optimize_polygon.
@@ -96,7 +97,6 @@ def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str],
     :param polygon_type: 'alpha_shape' or 'convexhull'.
     :param shoreline_distance_method - "euclidean" / "haversine". only relevant if type_of_area_mapped=='ports'.
     :param shoreline_polygon: merged shoreline layer to one multipolygon. only relevant if type_of_area_mapped=='ports'.
-    :param ports_df: dataframe of WW ports. only relevant if type_of_area_mapped=='ports'.
     :param only_container_vessels: boolean, only relevant if type_of_area_mapped=='pwa'.
     :return: geopandas dataframe of all polygenized clusters with their features.
     """
