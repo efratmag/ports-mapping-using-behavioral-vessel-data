@@ -36,7 +36,7 @@ def haversine(lonlat1: Tuple[float, float], lonlat2: Tuple[float, float]) -> flo
 def polygon_from_points(points: np.array, polygenize_method: str, alpha: int = None) -> Polygon:
 
     """
-    Takes lat/lng array of points and creates polygon from them, using alpha_shape or convex_hull method.
+    Takes lat/lon array of points and creates polygon from them, using alpha_shape or convex_hull method.
     """
 
     assert polygenize_method in ['alpha_shape', 'convex_hull'], \
@@ -248,9 +248,9 @@ def calc_nearest_shore(cluster_polygon: Polygon, shoreline_polygon: MultiPolygon
 
         nearest_shore = {f'distance_from_shore_{method}': distance,
                          'nearest_shore_lat': point1[0],
-                         'nearest_shore_lng': point1[1],
+                         'nearest_shore_lon': point1[1],
                          'nearest_point_lat': point2[0],
-                         'nearest_point_lng': point2[1]}
+                         'nearest_point_lon': point2[1]}
 
     return nearest_shore
 
@@ -301,9 +301,9 @@ def polygon_to_wgs84(polygon: Union[Polygon, MultiPolygon], avg_lat: float = Non
             avg_lat = get_avg_lat(get_multipolygon_exterior(polygon))
 
     def shape_to_wgs84(x, y, avg_lat):  # convert to wgs84
-        lng = x / math.cos(math.radians(avg_lat)) / METERS_IN_DEG
+        lon = x / math.cos(math.radians(avg_lat)) / METERS_IN_DEG
         lat = y / METERS_IN_DEG
-        return lat, lng
+        return lat, lon
 
     def to_wgs84(x, y):
         return tuple(reversed(shape_to_wgs84(x, y, avg_lat)))  # apply wgs84 conversion
@@ -329,13 +329,13 @@ def polygon_to_meters(polygon: Union[Polygon, MultiPolygon], avg_lat: float = No
         elif isinstance(polygon, MultiPolygon):
             avg_lat = get_avg_lat(get_multipolygon_exterior(polygon))  # get average latitude of the multipolygon
 
-    def shape_to_meters(lat, lng, avg_lat):  # convert to meters
-        x = lng * math.cos(math.radians(avg_lat)) * METERS_IN_DEG
+    def shape_to_meters(lat, lon, avg_lat):  # convert to meters
+        x = lon * math.cos(math.radians(avg_lat)) * METERS_IN_DEG
         y = lat * METERS_IN_DEG
         return x, y
 
-    def to_meters(lng, lat):
-        return shape_to_meters(lat, lng, avg_lat)  # apply meter conversion
+    def to_meters(lon, lat):
+        return shape_to_meters(lat, lon, avg_lat)  # apply meter conversion
 
     return avg_lat, shape(ops.transform(to_meters, polygon))
 
@@ -418,9 +418,9 @@ def create_google_maps_link_to_centroid(centroid: Point) -> str:
     """
     Get google maps link with the location
     """
-    centroid_lat, centroid_lng = centroid.y, centroid.x
+    centroid_lat, centroid_lon = centroid.y, centroid.x
 
-    return f'https://maps.google.com/?ll={centroid_lat},{centroid_lng}'
+    return f'https://maps.google.com/?ll={centroid_lat},{centroid_lon}'
 
 
 def optimize_polygon_by_probs(points: np.array, probs: np.array, polygon_type: str = 'alpha_shape', alpha: int = 4,
@@ -433,7 +433,7 @@ def optimize_polygon_by_probs(points: np.array, probs: np.array, polygon_type: s
     it will create multiple polygons (n_polygons) for each probability threshold, calculate area, and save the value.
     then it will look for an elbow point (using KneeLocator) to the probability threshold
 
-    :param points: numpy array of lng, lat
+    :param points: numpy array of lon, lat
     :param probs: hdbscan probabilities
     :param polygon_type: 'alpha_shape'/ 'convex_hull'
     :param alpha: alpha value for alpha_shape
