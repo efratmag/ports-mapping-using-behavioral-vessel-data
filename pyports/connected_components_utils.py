@@ -163,6 +163,7 @@ def preprocess_for_connected_components(import_path: pathlib.Path, df: pd.DataFr
 
     # TODO: for all exists file inspections- make sure the file checked is per running time
     # filter out points in rivers
+    logging.info("start removing in-land points...")
     if filter_river_points:
         if not import_path.joinpath("river_mask_mooring.txt").exists():
             river_mask = is_in_river(locations, main_land)
@@ -172,9 +173,9 @@ def preprocess_for_connected_components(import_path: pathlib.Path, df: pd.DataFr
             with open(import_path.joinpath("river_mask_mooring.txt"), "rb") as fp:
                 river_mask = pickle.load(fp)
         locations = locations[np.invert(river_mask)]  # take only ports where in_river == False
-        print(f"""removed {np.sum(river_mask)} points that lay in rivers (
-                {np.sum(river_mask) / locations.shape[0] * 100:.2f}% of the data).""")
+        print(f"""removed {np.sum(river_mask)} points that lay in rivers ({np.sum(river_mask) / locations.shape[0] * 100:.2f}% of the data).""")
 
+    logging.info("projecting points to utm zones and get border information...")
     # get locations_utm - projections of lat lon to utm coordinates
     if not import_path.joinpath("locations_preprocessed.csv").exists():
         # get utm zone
