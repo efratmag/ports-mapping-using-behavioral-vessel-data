@@ -76,9 +76,9 @@ def main(import_path: str, export_path: str, activity: Union[ACTIVITY, str] = AC
     logging.info('finished clustering!')
 
     # polygenize clusters and extract features of interest
-    ports_waiting_areas_polygons = polygenize_clusters_with_features(type_of_area_mapped, df, polygons_df, main_land,
-                                                                     blip, optimize_polygon, polygon_alpha,
-                                                                     polygon_type, only_container_vessels)
+    ports_waiting_areas_polygons = polygenize_clusters_with_features(type_of_area_mapped, df, polygons_df, ports_df,
+                                                                     main_land, shoreline_polygon, blip,
+                                                                     optimize_polygon, polygon_alpha, polygon_type)
 
     # save results
     if save_files:
