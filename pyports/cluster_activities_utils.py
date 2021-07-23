@@ -80,9 +80,8 @@ def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaTyp
 
 def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str], df_for_clustering: pd.DataFrame,
                                       polygons_df: gpd.GeoDataFrame, ports_df: pd.DataFrame, main_land: MultiPolygon,
-                                      blip: str, optimize_polygon: bool, alpha: int, polygon_type: str,
-                                      shoreline_distance_method: str = 'haversine',
-                                      shoreline_polygon: MultiPolygon = None,
+                                      shoreline_polygon: MultiPolygon, blip: str, optimize_polygon: bool, alpha: int,
+                                      polygon_type: str, shoreline_distance_method: str = 'haversine',
                                       only_container_vessels: bool = None) -> gpd.GeoDataFrame:
 
     """
@@ -91,12 +90,12 @@ def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str],
     :param polygons_df: dataframe of WW polygons.
     :param ports_df: dataframe of WW ports. only relevant if type_of_area_mapped=='ports'.
     :param main_land: multi-polygon of the main continents.
+    :param shoreline_polygon: merged shoreline layer to one multipolygon. only relevant if type_of_area_mapped=='ports'.
     :param blip: as in main- 'first' or 'last'.
     :param optimize_polygon: if True, will apply optimize_polygon.
     :param alpha: as in main- parameter for alpha shape- degree of polygon segregation.
     :param polygon_type: 'alpha_shape' or 'convexhull'.
     :param shoreline_distance_method - "euclidean" / "haversine". only relevant if type_of_area_mapped=='ports'.
-    :param shoreline_polygon: merged shoreline layer to one multipolygon. only relevant if type_of_area_mapped=='ports'.
     :param only_container_vessels: boolean, only relevant if type_of_area_mapped=='pwa'.
     :return: geopandas dataframe of all polygenized clusters with their features.
     """
