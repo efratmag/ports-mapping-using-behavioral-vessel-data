@@ -58,8 +58,8 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
 
     logging.info('preprocessing data...')
 
-    locations_preprocessed, river_mask = preprocess_for_connected_components(import_path, df, blip, main_land, filter_river_points,
-                                                                 epsilon)
+    locations_preprocessed, river_mask = preprocess_for_connected_components(import_path, df, blip, main_land,
+                                                                             filter_river_points, epsilon)
 
     logging.info('starting growing connected components...')
 
@@ -160,9 +160,9 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
     logging.info('finished post processing of components!')
 
     # polygenize clusters and extract features of interest
-    ports_polygons = polygenize_clusters_with_features(type_of_area_mapped, df_sub, polygons_df, main_land,
-                                                                     blip, optimize_polygon, polygon_alpha,
-                                                                     polygon_type, only_container_vessels)
+    ports_polygons = polygenize_clusters_with_features(type_of_area_mapped, df_sub, polygons_df, ports_df, main_land,
+                                                       shoreline_polygon, blip, optimize_polygon, polygon_alpha,
+                                                       polygon_type)
 
     # save results
     if save_files:
