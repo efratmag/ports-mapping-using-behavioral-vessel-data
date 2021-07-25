@@ -1,3 +1,6 @@
+import numpy as np
+import pandas as pd
+
 from pyports.geo_utils import *
 import utm
 import pickle
@@ -5,8 +8,14 @@ import pathlib
 
 R = R * 10**3  # adjusting earth radius units to current code # TODO:
 
+"""
+___________________________
+FUNCTIONS FOR PREPROCESSING
+___________________________
+"""
 
-def get_utm(lat, lon):
+
+def get_utm(lat: float, lon: float) -> pd.Series:
     """Calculate UTM coordinates latitude and longitude."""
 
     easting, northing, zone_number, zone_letter = utm.from_latlon(lat, lon)
@@ -14,18 +23,21 @@ def get_utm(lat, lon):
                      index=["easting", "northing", "zone_number", "zone_letter"])
 
 
-def check_zone(zone_number, zone_letter):
+def check_zone(zone_number: int, zone_letter: str) -> bool:
     """Check if zone number and zone letter are valid."""
 
-    if zone_number < 0 or zone_number > 60: raise ValueError(f"zone number is invalid: {zone_number}")
-    if zone_letter not in ZONE_LETTERS: raise ValueError(f"zone letter is invalid: {zone_letter}")
+    if zone_number < 0 or zone_number > 60:
+        raise ValueError(f"zone number is invalid: {zone_number}")
+    if zone_letter not in ZONE_LETTERS:
+        raise ValueError(f"zone letter is invalid: {zone_letter}")
     if zone_letter == "X" and zone_number in [32, 34, 36]:
         raise ValueError(f"there are no zone {zone_number}{zone_letter}")
     return True
 
 
 def validate_zone(*decargs):
-    if len(decargs)!=2: raise ValueError("zone designator contains exactly two elements")
+    if len(decargs) != 2:
+        raise ValueError("zone designator contains exactly two elements")
 
     zone_number_idx = decargs[0]
     zone_letter_idx = decargs[1]
@@ -45,7 +57,7 @@ def validate_zone(*decargs):
 
 
 @validate_zone(0, 1)
-def get_neighboring_zone_generic(zone_number, zone_letter, border):
+def get_neighboring_zone_generic(zone_number: int, zone_letter: str, border: str) -> dict:
     """Get generic neighboring zone."""
 
     if (zone_letter == "X" and "N" in border) or (zone_letter == "C" and "S" in border):
@@ -75,7 +87,7 @@ def get_neighboring_zone_generic(zone_number, zone_letter, border):
 
 
 @validate_zone(0, 1)
-def get_neighboring_zones(zone_number, zone_letter, borders):
+def get_neighboring_zones(zone_number: int, zone_letter: str, borders: list) -> dict:
     """Get zones neighboring to `borders` of `zone_number, zone_letter`."""
 
     zone = f"{zone_number}{zone_letter}"
@@ -84,7 +96,7 @@ def get_neighboring_zones(zone_number, zone_letter, borders):
 
     if "".join(borders) not in ALLOWED_BORDERS: raise ValueError(f"border tuple {borders} is invalid")
 
-    neigboring_zones = {}
+    neighboring_zones = {}
 
     all_borders = set(borders)
     all_borders.add("".join(borders))
@@ -94,15 +106,17 @@ def get_neighboring_zones(zone_number, zone_letter, borders):
             update = SPECIAL_BORDERS[zone][border]
         else:
             update = get_neighboring_zone_generic(zone_number, zone_letter, border)
-        neigboring_zones.update(update)
-    return neigboring_zones
+        neighboring_zones.update(update)
+    return neighboring_zones
 
 
 @validate_zone(0, 1)
-def get_zone_border(zone_number, zone_letter):
+def get_zone_border(zone_number: int, zone_letter: str) -> Tuple(int, int, int, int):
     """Convenience routine to calculate zone border along latitude and longitude."""
 
     zone = f"{zone_number}{zone_letter}"
+
+    lon_min, lon_max, lat_min, lat_max = ()
 
     # generic path
     if zone not in ZONE_EXCEPTIONS:
@@ -126,13 +140,14 @@ def get_zone_border(zone_number, zone_letter):
     lat_min = -80 + 8 * zone_letter_idx
     lat_max = lat_min + 8
 
-    if lat_max==80: lat_max = 84
+    if lat_max == 80:
+        lat_max = 84
 
     return lon_min, lon_max, lat_min, lat_max
 
 
 @validate_zone(2, 3)
-def is_border(lat, lon, zone_number, zone_letter, thr):
+def is_border(lat: float, lon: float, zone_number: int, zone_letter: str, thr: int) -> pd.Series:
     """Calculate border code for a location."""
 
     border_status = {}
@@ -167,6 +182,7 @@ def preprocess_for_connected_components(import_path: pathlib.Path, df: pd.DataFr
     # TODO: for all exists file inspections- make sure the file checked is per running time
     # filter out points in rivers
     logging.info("start removing in-land points...")
+    river_mask = []
     if filter_river_points:
         if not import_path.joinpath("river_mask_mooring.txt").exists():
             river_mask = is_in_river(locations, main_land)
@@ -176,7 +192,8 @@ def preprocess_for_connected_components(import_path: pathlib.Path, df: pd.DataFr
             with open(import_path.joinpath("river_mask_mooring.txt"), "rb") as fp:
                 river_mask = pickle.load(fp)
         locations = locations[np.invert(river_mask)]  # take only ports where in_river == False
-        print(f"""removed {np.sum(river_mask)} points that lay in rivers ({np.sum(river_mask) / locations.shape[0] * 100:.2f}% of the data).""")
+        print(f"""removed {np.sum(river_mask)} points that lay in rivers ({np.sum(river_mask) / locations.shape[0] * 100
+                :.2f}% of the data).""")
 
     logging.info("projecting points to utm zones and get border information...")
     # get locations_utm - projections of lat lon to utm coordinates
@@ -198,7 +215,7 @@ def preprocess_for_connected_components(import_path: pathlib.Path, df: pd.DataFr
         locations_preprocessed["cell_x"] = (locations_preprocessed["easting"] / thr).astype(int)
         locations_preprocessed["cell_y"] = (locations_preprocessed["northing"] / thr).astype(int)
         # sum up all four borders' boolean to one general indicator of whether a point is in border zone
-        locations_preprocessed["border"] = (locations_preprocessed[["N", "E", "S", "W"]].sum(axis=1)!=0).astype(int)
+        locations_preprocessed["border"] = (locations_preprocessed[["N", "E", "S", "W"]].sum(axis=1) != 0).astype(int)
 
         locations_preprocessed.to_csv(import_path.joinpath("locations_preprocessed.csv"), index=False)
 
@@ -208,12 +225,19 @@ def preprocess_for_connected_components(import_path: pathlib.Path, df: pd.DataFr
     return locations_preprocessed, river_mask
 
 
-def get_in_zone_distances(loc, locs):
+"""
+__________________________________
+FUNCTIONS FOR CONNECTED COMPONENTS
+__________________________________
+"""
+
+
+def get_in_zone_distances(loc: pd.Series, locs: pd.DataFrame) -> np.array:
     """Calculate distances between `loc` and all location in `locs` in the same zone."""
     return np.sqrt(np.square(locs[["easting", "northing"]] - loc[["easting", "northing"]]).sum(axis=1))
 
 
-def get_cross_zone_distances(loc, locs):
+def get_cross_zone_distances(loc: pd.Series, locs: pd.DataFrame) -> np.array:
     """Calculate distances between `loc` and all location in `locs` in the same zone."""
 
     dphi_sqr = np.square(locs["lat"] - loc["lat"])
@@ -221,7 +245,8 @@ def get_cross_zone_distances(loc, locs):
     return R * np.sqrt(dphi_sqr + np.cos(loc.lat * np.pi / 180) * dlambda_sqr) * np.pi / 180
 
 
-def get_in_zone_neighbors_kdtree(loc, tree, thr):
+def get_in_zone_neighbors_kdtree(loc: pd.Series, tree, thr: int):
+    # TODO: add missing type hints
     """Calculate neighbors of `loc` in the same zone."""
 
     tree_elements, tree = tree
@@ -230,39 +255,39 @@ def get_in_zone_neighbors_kdtree(loc, tree, thr):
     return tree_elements[neighbors]
 
 
-def get_in_zone_neighbors(loc, locs, thr):
+def get_in_zone_neighbors(loc: pd.Series, locs: pd.DataFrame, thr: int):
     """Calculate neighbors of `loc` in the same zone."""
-    # TODO: vectorize
+    # TODO: vectorized
 
-    zone_mask = (locs.zone_number==loc.zone_number) & (locs.zone_letter==loc.zone_letter)
-    cand_mask_x = (locs.cell_x==loc.cell_x) | (locs.cell_x==(loc.cell_x-1)) | (locs.cell_x==(loc.cell_x+1))
-    cand_mask_y = (locs.cell_y==loc.cell_y) | (locs.cell_y==(loc.cell_y-1)) | (locs.cell_y==(loc.cell_y+1))
-    cand_mask = cand_mask_x & cand_mask_y & zone_mask & (locs.component==-1)
+    zone_mask = (locs.zone_number == loc.zone_number) & (locs.zone_letter == loc.zone_letter)
+    cand_mask_x = (locs.cell_x == loc.cell_x) | (locs.cell_x == (loc.cell_x-1)) | (locs.cell_x == (loc.cell_x+1))
+    cand_mask_y = (locs.cell_y == loc.cell_y) | (locs.cell_y == (loc.cell_y-1)) | (locs.cell_y == (loc.cell_y+1))
+    cand_mask = cand_mask_x & cand_mask_y & zone_mask & (locs.component == -1)
     candidates = locs[cand_mask]
 
     dist = get_in_zone_distances(loc, candidates)
-    return candidates[dist<=thr].index
+    return candidates[dist <= thr].index
 
 
-def get_cross_zone_neighbors(loc, locs, thr):
+def get_cross_zone_neighbors(loc: pd.Series, locs: pd.DataFrame, thr: int):
     """Calculate neighbors of `loc` in the same zone."""
 
     updated_zones = []
     border_status = loc[["N", "S", "E", "W"]]
-    border_list = border_status[border_status!=0].index.tolist()
-    neigboring_zones = get_neighboring_zones(loc.zone_number, loc.zone_letter, border_list)
+    border_list = border_status[border_status != 0].index.tolist()
+    neighboring_zones = get_neighboring_zones(loc.zone_number, loc.zone_letter, border_list)
 
     neighbors = []
 
-    for (zn, zl), borders in neigboring_zones.items():
-        zone_mask = (locs.zone_number==zn) & (locs.zone_letter==zl)
-        border_mask = locs[borders].sum(axis=1)!=0
-        candidates = locs[zone_mask & border_mask & (locs.component==-1)]
+    for (zn, zl), borders in neighboring_zones.items():
+        zone_mask = (locs.zone_number == zn) & (locs.zone_letter == zl)
+        border_mask = locs[borders].sum(axis=1) != 0
+        candidates = locs[zone_mask & border_mask & (locs.component == -1)]
 
         dist = get_cross_zone_distances(loc, candidates)
-        neighbors.append(candidates[dist<=thr])
+        neighbors.append(candidates[dist <= thr])
 
-        if not candidates[dist<=thr].empty:
+        if not candidates[dist <= thr].empty:
             updated_zones.append((zn, zl))
 
     return pd.concat(neighbors).index, updated_zones
@@ -286,7 +311,7 @@ class ConnectedComponent(object):
         self.visited.add(element)
 
     def is_full(self):
-        return self.members==self.visited
+        return self.members == self.visited
 
     def grow(self, locs=None, kdtrees=None):
         """Grow this component by elements from `locs`."""
@@ -298,7 +323,7 @@ class ConnectedComponent(object):
         for element in subset:
             zn, zl = self.all_locations.loc[element, ["zone_number", "zone_letter"]]
 
-            if (kdtrees is not None):
+            if kdtrees is not None:
                 kdtree = kdtrees[(zn, zl)]
                 neighbors = get_in_zone_neighbors_kdtree(self.all_locations.loc[element],
                                                          kdtree,
@@ -307,7 +332,8 @@ class ConnectedComponent(object):
                 neighbors = get_in_zone_neighbors(self.all_locations.loc[element], locs, self.thr)
 
             if self.all_locations.loc[element, "border"]:
-                cross_zone_neighbors, updated_zones = get_cross_zone_neighbors(self.all_locations.loc[element], locs, self.thr)
+                cross_zone_neighbors, updated_zones = get_cross_zone_neighbors(self.all_locations.loc[element], locs,
+                                                                               self.thr)
                 neighbors = neighbors.union(cross_zone_neighbors)
                 all_updated_zones.update(updated_zones)
 
