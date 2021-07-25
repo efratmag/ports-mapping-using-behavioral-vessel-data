@@ -94,7 +94,7 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
         seed = locs[locs.component == -1].sample(1).index[0]
 
         zn, zl = locs.loc[seed, ["zone_number", "zone_letter"]]
-        zone_mask = (locs.zone_number ==zn) & (locs.zone_letter == zl)
+        zone_mask = (locs.zone_number == zn) & (locs.zone_letter == zl)
 
         component = ConnectedComponent(current_cid, locs, epsilon)
         component.add(seed)

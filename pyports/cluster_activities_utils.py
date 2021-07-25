@@ -1,3 +1,5 @@
+import pathlib
+
 from pyports.geo_utils import *
 from tqdm import tqdm
 import pandas as pd
@@ -34,7 +36,8 @@ def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaTyp
 
     # parsing input values
     activity = activity.value if isinstance(activity, ACTIVITY) else activity
-    type_of_area_mapped = type_of_area_mapped.value if isinstance(type_of_area_mapped, AreaType) else type_of_area_mapped
+    type_of_area_mapped = type_of_area_mapped.value if isinstance(type_of_area_mapped, AreaType) else \
+        type_of_area_mapped
 
     # TODO: add shoreline needed files to ww
     # TODO: update with winward querying methods
@@ -101,7 +104,8 @@ def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str],
     """
 
     # parsing input values
-    type_of_area_mapped = type_of_area_mapped.value if isinstance(type_of_area_mapped, AreaType) else type_of_area_mapped
+    type_of_area_mapped = type_of_area_mapped.value if isinstance(type_of_area_mapped, AreaType) else \
+        type_of_area_mapped
 
     df_for_clustering = df_for_clustering[df_for_clustering.cluster_label != -1]  # remove clustering outlier points
 
@@ -155,11 +159,12 @@ def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str],
         record['is_in_river'] = polygon.within(main_land)  # is the polygon in rivers (True) or in the sea/ocean (False)
         record['centroid_lat'] = polygon.centroid.y  # latitude of polygon centroid
         record['centroid_lon'] = polygon.centroid.x  # longitude of polygon centroid
-        record['pct_intersection'] = polygon_intersection(polygon, polygons_df, type_of_area_mapped)  # percent intersection with WW polygons
-        record['dist_to_ww_poly'] = calc_polygon_distance_from_nearest_ww_polygon(polygon, ww_polygons_centroids)  # distance from
+        record['pct_intersection'] = polygon_intersection(polygon, polygons_df, type_of_area_mapped)  # percent
+        # intersection with WW polygons
+        record['dist_to_ww_poly'] = calc_polygon_distance_from_nearest_ww_polygon(polygon, ww_polygons_centroids)
+        # distance from nearest WW polygon
         # TODO: find out why getting warning: UserWarning: Geometry is in a geographic CRS. Results from 'centroid' are
         #  likely incorrect. Use 'GeoSeries.to_crs()' to re-project geometries to a projected CRS before this operation.
-        # nearest WW polygon
         if type_of_area_mapped == 'ports':
             # calculate distance from nearest port and from shoreline only for ports for later filtering
             record['distance_from_nearest_port'], record['name_of_nearest_port'] = \
@@ -178,7 +183,7 @@ def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str],
 
 
 def save_data(type_of_area_mapped: Union[AreaType, str], polygenized_clusters_geodataframe: gpd.GeoDataFrame,
-              export_path: str):
+              export_path: pathlib.Path):
     """
     saves geojson and csv versions of the mapped areas.
 
@@ -191,4 +196,3 @@ def save_data(type_of_area_mapped: Union[AreaType, str], polygenized_clusters_ge
 
     polygenized_clusters_geodataframe.to_file(os.path.join(export_path, fname + '.geojson'), driver="GeoJSON")
     polygenized_clusters_geodataframe.to_csv(os.path.join(export_path, fname + '.csv'))
-
