@@ -19,7 +19,7 @@ def main(import_path: str, export_path: str, activity: Union[ACTIVITY, str] = AC
          only_container_vessels: bool = True, hdbscan_min_cluster_size: int = 20, hdbscan_min_samples: int = 10,
          hdbscan_distance_metric: int = 'haversine', polygon_type: str = 'alpha_shape', polygon_alpha: int = 4,
          optimize_polygon: bool = True, sub_area_polygon_fname: str = None, save_files: bool = False,
-         debug: bool = False):
+         use_db: bool = False, debug: bool = False):
 
     """
     :param import_path: path to all used files.
@@ -36,6 +36,7 @@ def main(import_path: str, export_path: str, activity: Union[ACTIVITY, str] = AC
     :param optimize_polygon: if True, will apply optimize_polygon.
     :param sub_area_polygon_fname: optional- add file name for sub area of interest.
     :param save_files: boolean- whether to save results and model to output_path.
+    :param use_db: if True, will use mongo db to query data.
     :param debug: take only subset of data for testing code.
 
     """
@@ -44,7 +45,7 @@ def main(import_path: str, export_path: str, activity: Union[ACTIVITY, str] = AC
     # loading data
     df, ports_df, polygons_df, main_land, shoreline_polygon = \
         get_data_for_clustering(import_path, type_of_area_mapped, activity,  blip,
-                                only_container_vessels, sub_area_polygon_fname, debug)
+                                only_container_vessels, sub_area_polygon_fname, use_db, debug)
 
     locations = df[[f'{blip}Blip_lat', f'{blip}Blip_lon']].to_numpy()  # points for clustering
 
