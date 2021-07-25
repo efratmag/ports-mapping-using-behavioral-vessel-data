@@ -374,7 +374,7 @@ def merge_adjacent_polygons(geo_df: gpd.GeoDataFrame, inflation_meter: Union[flo
 
     """
     This function will merge proximate polygons.
-    First, polgons will be inflating by "inflation_meter", then intersected polygons will be merged
+    First, polygons will be inflating by "inflation_meter", then intersected polygons will be merged
     :param geo_df: geopandas df with polygons
     :param inflation_meter:
     :param aggfunc: aggfunc for the polygons attributes aggregation

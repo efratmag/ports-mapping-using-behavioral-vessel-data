@@ -26,7 +26,8 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
          blip: str = 'first', type_of_area_mapped: Union[AreaType, str] = AreaType.PORTS,
          filter_river_points: bool = True, epsilon: int = 10000, only_container_vessels: bool = False,
          hdbscan_min_cluster_size: int = 30, hdbscan_min_samples: int = 5, hdbscan_distance_metric: int = 'haversine',
-         polygon_type: str = 'alpha_shape', polygon_alpha: int = 4, optimize_polygon: bool = False,
+         polygon_type: str = 'alpha_shape', polygon_alpha: int = 4, optimize_polygon: bool = True,
+         filter_polygons_far_from_shore: bool = True, merge_nearby_polygons: bool = True,
          sub_area_polygon_fname: str = None, save_files: bool = False, debug: bool = False):
 
     """
@@ -44,6 +45,8 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
     :param polygon_type: 'alpha_shape' or 'convexhull'.
     :param polygon_alpha: parameter for 'alpha_shape'- degree of polygon segregation.
     :param optimize_polygon: if True, will apply optimize_polygon.
+    :param filter_polygons_far_from_shore: remove polygons that are not on the shoreline.
+    :param merge_nearby_polygons: merge nearby polygons to a multipolygon.
     :param sub_area_polygon_fname: optional- add file name for sub area of interest.
     :param save_files: boolean- whether to save results and model to output_path.
     :param debug: take only subset of data for testing code.
@@ -140,7 +143,7 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
     for i, comp in enumerate(tqdm(locs.component.unique())):
         idxs = locs.index[locs.component == comp]
         sub_locs = locs.loc[idxs, ['lat', 'lon']].to_numpy()
-        if sub_locs.shape[0] > 20:  # if enough points left
+        if sub_locs.shape[0] > 10:  # if enough points left
             clusterer = hdbscan.HDBSCAN(min_cluster_size=hdbscan_min_cluster_size,
                                         min_samples=hdbscan_min_samples,
                                         metric=hdbscan_distance_metric)
@@ -160,9 +163,17 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
     logging.info('finished post processing of components!')
 
     # polygenize clusters and extract features of interest
+    logging.info('polygenize clusters and extract polygons features...')
     ports_polygons = polygenize_clusters_with_features(type_of_area_mapped, df_sub, polygons_df, ports_df, main_land,
                                                        shoreline_polygon, blip, optimize_polygon, polygon_alpha,
                                                        polygon_type)
+
+    # post processing - remove polygons far from shoreline and merge nearby polygons
+    if filter_polygons_far_from_shore:
+        ports_polygons = ports_polygons[ports_polygons['distance_from_shore_haversine'] <= 3]  # TODO: parametrize
+
+    if merge_nearby_polygons:
+        _, ports_polygons = merge_adjacent_polygons(ports_polygons)
 
     # save results
     if save_files:
