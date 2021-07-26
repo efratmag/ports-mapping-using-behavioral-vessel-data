@@ -170,7 +170,7 @@ def is_border(lat: float, lon: float, zone_number: int, zone_letter: str, thr: i
 
 
 def preprocess_for_connected_components(import_path: pathlib.Path, df: pd.DataFrame, blip: str, main_land: MultiPolygon,
-                                        filter_river_points: bool, thr: int) -> Tuple(pd.DataFrame, list):
+                                        filter_river_points: bool, thr: int):
     """
     preprocess data: filter out river points (optional), project to utm zones and extract borders info.
     returns dataframe for connected components and a list of river mask.
