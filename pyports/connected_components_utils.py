@@ -111,7 +111,7 @@ def get_neighboring_zones(zone_number: int, zone_letter: str, borders: list) -> 
 
 
 @validate_zone(0, 1)
-def get_zone_border(zone_number: int, zone_letter: str) -> Tuple():
+def get_zone_border(zone_number: int, zone_letter: str) -> tuple():
     """Convenience routine to calculate zone border along latitude and longitude."""
 
     zone = f"{zone_number}{zone_letter}"
