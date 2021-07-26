@@ -28,7 +28,7 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
          hdbscan_min_cluster_size: int = 30, hdbscan_min_samples: int = 5, hdbscan_distance_metric: int = 'haversine',
          polygon_type: str = 'alpha_shape', polygon_alpha: int = 4, optimize_polygon: bool = True,
          filter_polygons_far_from_shore: bool = True, merge_nearby_polygons: bool = True,
-         sub_area_polygon_fname: str = None, save_files: bool = False, debug: bool = False):
+         sub_area_polygon_fname: str = None, save_files: bool = True, use_db: bool = False, debug: bool = False):
 
     """
     :param import_path: path to all used files.
@@ -49,15 +49,18 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
     :param merge_nearby_polygons: merge nearby polygons to a multipolygon.
     :param sub_area_polygon_fname: optional- add file name for sub area of interest.
     :param save_files: boolean- whether to save results and model to output_path.
+    :param use_db: if True, will use mongo db to query data.
     :param debug: take only subset of data for testing code.
 
     """
 
     logging.info('loading data...')
     # loading data
+    import_path = pathlib.Path(import_path)  # TODO
+
     df, ports_df, polygons_df, main_land, shoreline_polygon = \
         get_data_for_clustering(str(import_path), type_of_area_mapped, activity, blip,
-                                only_container_vessels, sub_area_polygon_fname, debug)
+                                only_container_vessels, sub_area_polygon_fname, use_db, debug)
 
     logging.info('preprocessing data...')
 
