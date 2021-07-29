@@ -483,5 +483,5 @@ def is_in_river(locations: pd.DataFrame, main_land: MultiPolygon) -> list:
     """
     # TODO: optimize to run faster with parallelization
     locs_gpd = gpd.GeoDataFrame(locations, geometry=gpd.points_from_xy(locations.lon, locations.lat, crs="EPSG:4326"))
-    return locs_gpd.loc[:, 'geometry'].progress_apply(lambda x: main_land.contains(x)).to_list()
+    return locs_gpd['geometry'].within(main_land).to_list()
 
