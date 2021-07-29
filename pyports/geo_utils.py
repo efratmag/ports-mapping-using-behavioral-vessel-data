@@ -370,7 +370,7 @@ def inflate_polygon(polygon: Union[Polygon, MultiPolygon], meters: Union[int, fl
 
 
 def merge_adjacent_polygons(geo_df: gpd.GeoDataFrame, inflation_meter: Union[float, int] = 1000,
-                            aggfunc: Union[str, dict] = 'mean') -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+                            aggfunc: Union[str, dict] = 'sum') -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
 
     """
     This function will merge proximate polygons.
