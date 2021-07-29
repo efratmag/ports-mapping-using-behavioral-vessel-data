@@ -1,11 +1,9 @@
+from pyports.geo_utils import *
+
 import unittest
 from shapely.geometry import Polygon, MultiPolygon
 import geopandas as gpd
 import numpy as np
-
-from pyports.geo_utils import haversine, calc_polygon_area_sq_unit, inflate_polygon, calc_cluster_density, \
-    merge_polygons, calc_polygon_distance_from_nearest_ww_polygon, polygon_intersection, get_multipolygon_exterior, \
-    polygon_to_wgs84, polygon_to_meters
 
 
 TEST_COORDINATES_A = ((34.66941833496094, 32.13172203278829),
@@ -25,6 +23,12 @@ TEST_COORDINATES_C = ((-113.675537109375, 31.052933985705163),
                       (-114.32647705078125, 30.327842001072675),
                       (-113.675537109375, 31.052933985705163))
 
+TEST_COORDINATES_D = ((34.74803924560547, 32.272619530825445),
+                      (34.69139099121094, 32.219481781779926),
+                      (34.7222900390625, 32.217739034207476),
+                      (34.74803924560547, 32.272619530825445))
+
+
 TEST_COORDINATES_METERS = ((3263387.947548054, 3572884.4743992453),
                            (3271822.562175513, 3572884.4743992453),
                            (3271822.562175513, 3582093.846986187),
@@ -34,10 +38,12 @@ TEST_COORDINATES_METERS = ((3263387.947548054, 3572884.4743992453),
 TEST_POLYGON_A = Polygon(TEST_COORDINATES_A)
 TEST_POLYGON_B = Polygon(TEST_COORDINATES_B)
 TEST_POLYGON_C = Polygon(TEST_COORDINATES_C)  # polygons A & C intersects
+TEST_POLYGON_D = Polygon(TEST_COORDINATES_D)  # polygons A & D are adjacent
 TEST_POLYGON_METERS = Polygon(TEST_COORDINATES_METERS)  # polygons A & WGS84 are identical (on different CRS)
 
 TEST_GEO_DF = gpd.GeoDataFrame([{"geometry": TEST_POLYGON_A, "polygon_area_type": "PortWaitingArea"},
-                               {"geometry": TEST_POLYGON_B, "polygon_area_type": "Port"}])
+                               {"geometry": TEST_POLYGON_B, "polygon_area_type": "Port"},
+                                {"geometry": TEST_POLYGON_D, "polygon_area_type": "Port"}])
 
 
 class TestHaversine(unittest.TestCase):
@@ -158,3 +164,26 @@ class TestPolygonToMeters(unittest.TestCase):
 
         self.assertEqual(meters_polygon, TEST_POLYGON_METERS,
                          "polygon_to_meters was not performed properly - wrong polygon")
+
+
+class TestMergeAdjacentPolygons(unittest.TestCase):
+
+    def test_merge_adjacent_polygons(self):
+        merged_inflated, merged_df = merge_adjacent_polygons(TEST_GEO_DF)
+        original_polygons_area = TEST_GEO_DF['geometry'].area.sum()
+        merged_polygons_area = merged_df['geometry'].area.sum()
+
+        self.assertAlmostEqual(original_polygons_area, merged_polygons_area, 6,
+                               "merge_adjacent_polygons was not performed properly - original and merged polygons area not equal")
+
+        self.assertEqual(len(merged_df), 2,
+                         "merge_adjacent_polygons was not performed properly - expecting 2 polygons after merging")
+
+
+class TestCalcEntropy(unittest.TestCase):
+
+    def test_calc_entropy(self):
+        values = pd.Series([1, 2, 2, 3, 2, 1, 5, 7, 7, 9])
+        entropy = calc_entropy(values)
+
+        self.assertAlmostEqual(entropy, 1.6957, 4, "calc_entropy was not performed properly - wrong entropy")
