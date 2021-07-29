@@ -191,6 +191,9 @@ def save_data(type_of_area_mapped: Union[AreaType, str], polygenized_clusters_ge
     :param export_path: the path to save the files.
     """
 
+    type_of_area_mapped = type_of_area_mapped.value if isinstance(type_of_area_mapped, AreaType) else \
+        type_of_area_mapped
+
     fname = f'{type_of_area_mapped}_polygons_{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}'
 
     polygenized_clusters_geodataframe.to_file(os.path.join(export_path, fname + '.geojson'), driver="GeoJSON")

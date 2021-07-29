@@ -173,7 +173,7 @@ def main(import_path: pathlib.Path, export_path: pathlib.Path, activity: Union[A
 
     # post processing - remove polygons far from shoreline and merge nearby polygons
     if filter_polygons_far_from_shore:
-        ports_polygons = ports_polygons[ports_polygons['distance_from_shore_haversine'] <= 3]  # TODO: parametrize
+        ports_polygons = ports_polygons[ports_polygons['distance_from_shore_haversine'] == 0]  # TODO: parametrize
 
     if merge_nearby_polygons:
         _, ports_polygons = merge_adjacent_polygons(ports_polygons)
