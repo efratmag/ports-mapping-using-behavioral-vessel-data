@@ -98,13 +98,13 @@ class TestMergePolygons(unittest.TestCase):
 
     def test_merged_polygons_counts(self):
         merged_df = merge_polygons(TEST_GEO_DF)
-        self.assertCountEqual(merged_df, [TEST_POLYGON_A, TEST_POLYGON_B],
+        self.assertCountEqual(merged_df, [TEST_POLYGON_A, TEST_POLYGON_B, TEST_POLYGON_D],
                               "polygons merging was not performed properly - wrong polygons count")
 
     def test_merged_polygon_area(self):
         merged_polygons_area = merge_polygons(TEST_GEO_DF).area
-        polygons_area = TEST_POLYGON_A.area + TEST_POLYGON_B.area
-        self.assertEqual(merged_polygons_area, polygons_area, "polygons merging was not performed properly - areas are not equal")
+        polygons_area = TEST_POLYGON_A.area + TEST_POLYGON_B.area + TEST_POLYGON_D.area
+        self.assertAlmostEqual(merged_polygons_area, polygons_area, 6, "polygons merging was not performed properly - areas are not equal")
 
 
 class TestNearestWwPolygon(unittest.TestCase):
@@ -187,3 +187,17 @@ class TestCalcEntropy(unittest.TestCase):
         entropy = calc_entropy(values)
 
         self.assertAlmostEqual(entropy, 1.6957, 4, "calc_entropy was not performed properly - wrong entropy")
+
+
+class TestGoogleMapsLink(unittest.TestCase):
+
+    def test_google_link(self):
+
+        test_point = Point((34.74803924560547, 32.272619530825445))
+        centroid_lat, centroid_lon = test_point.y, test_point.x
+
+        expected_link = f'https://maps.google.com/?ll={centroid_lat},{centroid_lon}'
+
+        func_link = create_google_maps_link_to_centroid(test_point)
+
+        self.assertEqual(expected_link, func_link, "google_link was not generated properly")
