@@ -1,9 +1,11 @@
 from pyports.geo_utils import *
+from pyports.get_metadata import get_shoreline_layer
 
 import unittest
 from shapely.geometry import Polygon, MultiPolygon
 import geopandas as gpd
 import numpy as np
+import os
 
 
 TEST_COORDINATES_A = ((34.66941833496094, 32.13172203278829),
@@ -201,3 +203,24 @@ class TestGoogleMapsLink(unittest.TestCase):
         func_link = create_google_maps_link_to_centroid(test_point)
 
         self.assertEqual(expected_link, func_link, "google_link was not generated properly")
+
+
+class TestCalcNearestShore(unittest.TestCase):
+
+    def test_calc_nearest_shore(self):
+
+        expected_fields = ['distance_from_shore_haversine', 'nearest_shore_lat',
+                           'nearest_shore_lon', 'nearest_point_lat', 'nearest_point_lon']
+
+        shoreline_file_path = os.getcwd().replace('/tests', '/data_samples_for_tests')
+
+        main_land, get_shoreline_df = get_shoreline_layer(shoreline_file_path)
+
+        distance_dict = calc_nearest_shore(TEST_POLYGON_A, get_shoreline_df)
+
+        self.assertEqual(set(distance_dict.keys()), set(expected_fields), "incorrect distance_dict fields")
+        self.assertAlmostEqual(distance_dict['distance_from_shore_haversine'], 1.595521, 5, "incorrect nearest distance")
+        self.assertAlmostEqual(distance_dict['nearest_shore_lat'], 32.126204, 5, "incorrect nearest_shore_lat")
+        self.assertAlmostEqual(distance_dict['nearest_shore_lon'], 34.774645, 5, "incorrect nearest_shore_lon")
+        self.assertAlmostEqual(distance_dict['nearest_point_lat'], 32.131722, 5, "incorrect nearest_point_lat")
+        self.assertAlmostEqual(distance_dict['nearest_point_lon'], 34.759025, 5, "incorrect nearest_point_lon")
