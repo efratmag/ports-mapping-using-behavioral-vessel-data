@@ -62,3 +62,19 @@ class TestGetPortsInfo(unittest.TestCase):
         self.assertEqual(get_ports_df["country"].to_list(), ports_country, "incorrect ports_country values")
         self.assertEqual(len(ports_df), len(get_ports_df), "incorrect records counts")
         self.assertEqual(get_ports_df['PortId'].to_list(), ports_df.index.to_list(), "incorrect vessels ids")
+
+
+class TestGetShoreLineLayer(unittest.TestCase):
+
+    def test_shoreline_layer(self):
+
+        shoreline_file_path = os.getcwd().replace('/tests', '/data_samples_for_tests')
+
+        shoreline_df = gpd.read_file(os.path.join(shoreline_file_path, 'shoreline_layer.geojson'))
+
+        main_land, get_shoreline_df = get_shoreline_layer(shoreline_file_path)
+
+        self.assertEqual(len(main_land), 4, "incorrect polygons counts of main_land")
+        self.assertEqual(len(shoreline_df), len(list(get_shoreline_df)), "incorrect records counts")
+        self.assertAlmostEqual(shoreline_df['geometry'].area.sum(), get_shoreline_df.area, 5, "incorrect area")
+
