@@ -277,21 +277,21 @@ def get_cross_zone_neighbors(loc: pd.Series, locs: pd.DataFrame, thr: int):
     border_list = border_status[border_status != 0].index.tolist()
     neighboring_zones = get_neighboring_zones(loc.zone_number, loc.zone_letter, border_list)
 
-    neighbors = []
+    neighbors = pd.Index([])
 
     for (zn, zl), borders in neighboring_zones.items():
-        zone_mask = (locs.zone_number == zn) & (locs.zone_letter == zl)
+        zone_mask = (locs.zone_number==zn) & (locs.zone_letter==zl)
         border_mask = locs.border != 0
-        candidates = locs[zone_mask & border_mask & (locs.component == -1)]
+        candidates = locs[zone_mask & border_mask]
 
         dist = get_cross_zone_distances(loc, candidates)
         zone_neighbors = candidates[dist <= thr * thr]
-        neighbors.append(zone_neighbors)
+        neighbors.union(zone_neighbors.index)
 
         if not zone_neighbors.empty:    
             updated_zones.append((zn, zl))
 
-    return pd.concat(neighbors).index, updated_zones
+    return neighbors, updated_zones
 
 
 class ConnectedComponent(object):
