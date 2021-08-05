@@ -27,6 +27,8 @@ R = 6378.1  # Radius of the Earth
 METERS_IN_DEG = 2 * math.pi * 6371000.0 / 360
 UNIT_RESOLVER = {'sqmi': 1609.34, 'sqkm': 1000.0}
 AREA_TYPE_RESOLVER = {AreaType.PORTS_WAITING_AREA.value: 'PortWaitingArea', AreaType.PORTS.value: 'Port'}
+PI_180 = math.pi / 180
+PI_90 = math.pi / 90
 
 # utm stuff
 ZONE_EXCEPTIONS = ["31V", "32V", "31X", "33X", "35X", "37X"]

@@ -234,7 +234,7 @@ __________________________________
 
 def get_in_zone_distances(loc: pd.Series, locs: pd.DataFrame) -> np.array:
     """Calculate distances between `loc` and all location in `locs` in the same zone."""
-    return np.sqrt(np.square(locs[["easting", "northing"]] - loc[["easting", "northing"]]).sum(axis=1))
+    return np.square(locs[["easting", "northing"]] - loc[["easting", "northing"]]).sum(axis=1)
 
 
 def get_cross_zone_distances(loc: pd.Series, locs: pd.DataFrame) -> np.array:
@@ -242,7 +242,7 @@ def get_cross_zone_distances(loc: pd.Series, locs: pd.DataFrame) -> np.array:
 
     dphi_sqr = np.square(locs["lat"] - loc["lat"])
     dlambda_sqr = np.square(locs["lon"] - loc["lon"])
-    return R * np.sqrt(dphi_sqr + np.cos(loc.lat * np.pi / 180) * dlambda_sqr) * np.pi / 180
+    return R * R * (dphi_sqr + 0.5 * (1 + np.cos(loc.lat * PI_90)) * dlambda_sqr) * PI_180
 
 
 def get_in_zone_neighbors_kdtree(loc: pd.Series, tree, thr: int):
@@ -281,13 +281,14 @@ def get_cross_zone_neighbors(loc: pd.Series, locs: pd.DataFrame, thr: int):
 
     for (zn, zl), borders in neighboring_zones.items():
         zone_mask = (locs.zone_number == zn) & (locs.zone_letter == zl)
-        border_mask = locs[borders].sum(axis=1) != 0
+        border_mask = locs.border != 0
         candidates = locs[zone_mask & border_mask & (locs.component == -1)]
 
         dist = get_cross_zone_distances(loc, candidates)
-        neighbors.append(candidates[dist <= thr])
+        zone_neighbors = candidates[dist <= thr * thr]
+        neighbors.append(zone_neighbors)
 
-        if not candidates[dist <= thr].empty:
+        if not zone_neighbors.empty:    
             updated_zones.append((zn, zl))
 
     return pd.concat(neighbors).index, updated_zones
@@ -318,22 +319,24 @@ class ConnectedComponent(object):
 
         subset = self.members.difference(self.visited)
         locs = locs if locs is not None else self.all_locations
+        current_locs = self.all_locations.loc[subset]
+        valid_locs = locs[locs.component!=-1]
         all_updated_zones = set()
 
         for element in subset:
-            zn, zl = self.all_locations.loc[element, ["zone_number", "zone_letter"]]
+            current_loc = current_locs.loc[element]
+            zn, zl = current_loc.zone_number, current_loc.zone_letter
 
             if kdtrees is not None:
                 kdtree = kdtrees[(zn, zl)]
-                neighbors = get_in_zone_neighbors_kdtree(self.all_locations.loc[element],
+                neighbors = get_in_zone_neighbors_kdtree(current_loc,
                                                          kdtree,
                                                          self.thr)
             else:
-                neighbors = get_in_zone_neighbors(self.all_locations.loc[element], locs, self.thr)
+                neighbors = get_in_zone_neighbors(current_loc, valid_locs, self.thr)
 
-            if self.all_locations.loc[element, "border"]:
-                cross_zone_neighbors, updated_zones = get_cross_zone_neighbors(self.all_locations.loc[element], locs,
-                                                                               self.thr)
+            if current_loc.border:
+                cross_zone_neighbors, updated_zones = get_cross_zone_neighbors(current_loc, valid_locs, self.thr)
                 neighbors = neighbors.union(cross_zone_neighbors)
                 all_updated_zones.update(updated_zones)
 
