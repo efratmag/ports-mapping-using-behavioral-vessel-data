@@ -1,3 +1,5 @@
+pymongo~=3.11.4
+bson~=0.5.10
 fire~=0.4.0
 pandas~=1.2.1
 numpy~=1.20.0
@@ -11,3 +13,4 @@ hdbscan~=0.8.27
 Geohash~=1.0
 setuptools~=40.6.2
 kneed~=0.7.0
+utm~=0.7.0

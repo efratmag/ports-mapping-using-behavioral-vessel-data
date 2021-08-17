@@ -1,76 +1,110 @@
+import pathlib
+
 from pyports.geo_utils import *
 from tqdm import tqdm
 import pandas as pd
 import geopandas as gpd
+import pymongo
 from shapely.geometry import Point
 import datetime
 import os
-import logging
+from typing import Union, Tuple
+
+from pyports.get_metadata import get_ww_polygons, get_ports_info, get_shoreline_layer
+from pyports.constants import ACTIVITY, AreaType, VesselType
 
 
-def get_data_for_clustering(import_path, activity, debug, sub_area_polygon_fname, blip, only_container_vessels):
+def get_data_for_clustering(import_path: str, type_of_area_mapped: Union[AreaType, str], activity: Union[ACTIVITY, str],
+                            blip: str, only_container_vessels: bool, sub_area_polygon_fname: str = None,
+                            use_db: bool = False, debug: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame,
+                                                                                gpd.GeoDataFrame, MultiPolygon,
+                                                                                MultiPolygon]:
 
-    logging.info('loading data for clustering - START')
+    """
+    this function will get all needed data for clustering.
+    :param import_path:path to all used files.
+    :param type_of_area_mapped: "ports" / "pwa" (ports waiting areas).
+    :param activity: "mooring" / "anchoring".
+    :param blip: "first" / "last".
+    :param only_container_vessels: use only container vessels for pwa mapping.
+    :param sub_area_polygon_fname: path to geojson file with polygon for area sub-setting.
+    :param use_db: if True, will use mongo db to query data.
+    :param debug: if True, only a first 10K rows of each file will be processed for the activity file.
+    :return: activity dataframe, ports dataframe, polygons dataframe, multipolygon of the main continents, multipolygon
+     of shoreline
+    """
 
-    df_for_clustering_fname = f'features/df_for_clustering_{activity}.csv'
+    # parsing input values
+    activity = activity.value if isinstance(activity, ACTIVITY) else activity
+    type_of_area_mapped = type_of_area_mapped.value if isinstance(type_of_area_mapped, AreaType) else \
+        type_of_area_mapped
+
+    # TODO: add shoreline needed files to ww
+    # TODO: update with winward querying methods
+    db = None
+    if use_db:
+        myclient = pymongo.MongoClient("<your connection string here>")  # initiate MongoClient for mongo queries
+        db = myclient["<DB name here>"]
+
+    df_for_clustering_fname = f'df_for_clustering_{activity}.csv.gz'
 
     nrows = 10000 if debug else None  # will load first 10K rows if debug == True
 
-    logging.info('loading activity data...')
-
+    # TODO: need to add condition to generate df_for_clustering if not exist
     df = pd.read_csv(os.path.join(import_path, df_for_clustering_fname), low_memory=False, nrows=nrows)
 
     if sub_area_polygon_fname:  # take only area of the data, e.g. 'maps/mediterranean.geojson'
-        logging.info('Calculating points within sub area...')
         sub_area_polygon = gpd.read_file(os.path.join(import_path, sub_area_polygon_fname)).loc[0, 'geometry']
-        df = df[df.apply(lambda x: Point(x[f'{blip}Blip_lng'], x[f'{blip}Blip_lat']).within(sub_area_polygon), axis=1)]
+        df = df[df.apply(lambda x: Point(x[f'{blip}Blip_lon'], x[f'{blip}Blip_lat']).within(sub_area_polygon), axis=1)]
 
-    if only_container_vessels:
-        df = df[df.class_new == 'cargo_container']  # take only container vessels
+    if type_of_area_mapped == 'pwa':
+        # if destination based clustering for pwa then include only activities with known destination
         df = df[df.nextPort_name != 'UNKNOWN']  # remove missing values
         df = df.groupby("nextPort_name").filter(lambda x: len(x) > 20)  # take only ports with at least 20 records
-        df.reset_index(drop=True, inplace=True)  # reset index
 
-    logging.info('loading ports data...')
-    ports_df = gpd.read_file(os.path.join(import_path, 'maps/ports.geojson'))  # WW ports
-    ports_df.drop_duplicates(subset='name', inplace=True)
+    if type_of_area_mapped == 'ports':
+        df = df[df.vessel_class_new != 'other']
+        # TODO: generalize vessel class selection
 
-    logging.info('loading polygons data...')
-    polygons_df = gpd.read_file(os.path.join(import_path, 'maps/polygons.geojson'),
-                                usecols=['_id', 'title', 'areaType', 'geometry'])  # WW polygons
+    if only_container_vessels:
+        df = df[df.vessel_class_new == VesselType.CARGO_CONTAINER.value]  # take only container vessels
+
+    df = df.drop_duplicates(subset=['firstBlip_lon', 'firstBlip_lat'])  # drop duplicates
+    df.reset_index(drop=True, inplace=True)
+
+    ports_df = get_ports_info(import_path, db)
+    polygons_df = get_ww_polygons(import_path, db)  # WW polygons
+    main_land, shoreline_polygon = get_shoreline_layer(import_path, db)
     # TODO: find out why still get error: WARNING:fiona.ogrext:Skipping field otherNames: invalid type 5
-
-    logging.info('loading shoreline data...')
-    shoreline_df = gpd.read_file(os.path.join(import_path, 'maps/shoreline_layer.geojson'))  # shoreline layer
-    main_land = merge_polygons(shoreline_df[:4])  # create multipolygon of the big continents
-    shoreline_polygon = merge_polygons(shoreline_df)  # merging shoreline_df to one multipolygon
-
-    logging.info('loading data for clustering - END')
 
     return df, ports_df, polygons_df, main_land, shoreline_polygon
 
 
-def polygenize_clusters_with_features(type_of_area_mapped, df_for_clustering, polygons_df, main_land, blip,
-                                      optimize_polygon, alpha, polygon_type, shoreline_distance_method='haversine',
-                                      shoreline_polygon=None, ports_df=None, only_container_vessels=None):
+def polygenize_clusters_with_features(type_of_area_mapped: Union[AreaType, str], df_for_clustering: pd.DataFrame,
+                                      polygons_df: gpd.GeoDataFrame, ports_df: pd.DataFrame, main_land: MultiPolygon,
+                                      shoreline_polygon: MultiPolygon, blip: str, optimize_polygon: bool, alpha: int,
+                                      polygon_type: str, shoreline_distance_method: str = 'haversine',
+                                      only_container_vessels: bool = None) -> gpd.GeoDataFrame:
 
     """
     :param type_of_area_mapped: 'ports' or 'pwa' (ports waiting areas).
     :param df_for_clustering: activities dataframe with clustering results.
     :param polygons_df: dataframe of WW polygons.
+    :param ports_df: dataframe of WW ports. only relevant if type_of_area_mapped=='ports'.
     :param main_land: multi-polygon of the main continents.
+    :param shoreline_polygon: merged shoreline layer to one multipolygon. only relevant if type_of_area_mapped=='ports'.
     :param blip: as in main- 'first' or 'last'.
     :param optimize_polygon: if True, will apply optimize_polygon.
     :param alpha: as in main- parameter for alpha shape- degree of polygon segregation.
     :param polygon_type: 'alpha_shape' or 'convexhull'.
     :param shoreline_distance_method - "euclidean" / "haversine". only relevant if type_of_area_mapped=='ports'.
-    :param shoreline_polygon: merged shoreline layer to one multipolygon. only relevant if type_of_area_mapped=='ports'.
-    :param ports_df: dataframe of WW ports. only relevant if type_of_area_mapped=='ports'.
     :param only_container_vessels: boolean, only relevant if type_of_area_mapped=='pwa'.
     :return: geopandas dataframe of all polygenized clusters with their features.
     """
 
-    logging.info('starting feature extraction for clusters...')
+    # parsing input values
+    type_of_area_mapped = type_of_area_mapped.value if isinstance(type_of_area_mapped, AreaType) else \
+        type_of_area_mapped
 
     df_for_clustering = df_for_clustering[df_for_clustering.cluster_label != -1]  # remove clustering outlier points
 
@@ -81,7 +115,7 @@ def polygenize_clusters_with_features(type_of_area_mapped, df_for_clustering, po
     for cluster in tqdm(df_for_clustering.cluster_label.unique()):  # iterate over clusters
         record = {}
         cluster_df = df_for_clustering[df_for_clustering.cluster_label == cluster]  # sub-df for chosen cluster
-        points = cluster_df[[f'{blip}Blip_lng', f'{blip}Blip_lat']].to_numpy()  # numpy array of lng/lat
+        points = cluster_df[[f'{blip}Blip_lon', f'{blip}Blip_lat']].to_numpy()  # numpy array of lon/lat
 
         if optimize_polygon:
             probs = cluster_df['cluster_probability'].to_numpy()
@@ -95,8 +129,9 @@ def polygenize_clusters_with_features(type_of_area_mapped, df_for_clustering, po
         else:
             polygon = polygon_from_points(points, polygon_type, alpha)  # create polygon from points
 
-        record['label'] = f'cluster_{cluster}'  # cluster label
-
+        record['label'] = f'cluster_{int(cluster)}'  # cluster label
+        if type_of_area_mapped == 'pwa':  # get destination port name
+            record['destination_port'] = cluster_df['nextPort_name'].mode()[0]
         record['probs_of_belonging_to_cluster'] = \
             ', '.join(cluster_df['cluster_probability'].astype(str).to_list())  # list of all points probabilities of
         # belonging to the cluster
@@ -116,18 +151,19 @@ def polygenize_clusters_with_features(type_of_area_mapped, df_for_clustering, po
         # cluster
         if not only_container_vessels:
             # only measure vessel type variance if there is more than one vessel type
-            record['most_freq_vessel_type'] = cluster_df['class_new'].mode()[0]  # most frequent vessel type in
+            record['most_freq_vessel_type'] = cluster_df['vessel_class_new'].mode()[0]  # most frequent vessel type in
             # cluster
-            record['vessel_type_variance'] = calc_entropy(cluster_df['class_new'])  # variance of vessel type in
+            record['vessel_type_variance'] = calc_entropy(cluster_df['vessel_class_new'])  # variance of vessel type in
             # cluster
         record['is_in_river'] = polygon.within(main_land)  # is the polygon in rivers (True) or in the sea/ocean (False)
         record['centroid_lat'] = polygon.centroid.y  # latitude of polygon centroid
-        record['centroid_lng'] = polygon.centroid.x  # longitude of polygon centroid
-        record['pct_intersection'] = polygon_intersection(polygon, polygons_df, type_of_area_mapped)  # percent intersection with WW polygons
-        record['dist_to_ww_poly'] = calc_polygon_distance_from_nearest_ww_polygon(polygon, ww_polygons_centroids)  # distance from
+        record['centroid_lon'] = polygon.centroid.x  # longitude of polygon centroid
+        record['pct_intersection'] = polygon_intersection(polygon, polygons_df, type_of_area_mapped)  # percent
+        # intersection with WW polygons
+        record['dist_to_ww_poly'] = calc_polygon_distance_from_nearest_ww_polygon(polygon, ww_polygons_centroids)
+        # distance from nearest WW polygon
         # TODO: find out why getting warning: UserWarning: Geometry is in a geographic CRS. Results from 'centroid' are
         #  likely incorrect. Use 'GeoSeries.to_crs()' to re-project geometries to a projected CRS before this operation.
-        # nearest WW polygon
         if type_of_area_mapped == 'ports':
             # calculate distance from nearest port and from shoreline only for ports for later filtering
             record['distance_from_nearest_port'], record['name_of_nearest_port'] = \
@@ -142,12 +178,11 @@ def polygenize_clusters_with_features(type_of_area_mapped, df_for_clustering, po
 
     cluster_polygons = gpd.GeoDataFrame(cluster_polygons)
 
-    logging.info('finished extracting polygons features!')
-
     return cluster_polygons
 
 
-def save_data(type_of_area_mapped, polygenized_clusters_geodataframe, export_path):
+def save_data(type_of_area_mapped: Union[AreaType, str], polygenized_clusters_geodataframe: gpd.GeoDataFrame,
+              export_path: pathlib.Path):
     """
     saves geojson and csv versions of the mapped areas.
 
@@ -156,12 +191,10 @@ def save_data(type_of_area_mapped, polygenized_clusters_geodataframe, export_pat
     :param export_path: the path to save the files.
     """
 
-    logging.info('saving data...')
+    type_of_area_mapped = type_of_area_mapped.value if isinstance(type_of_area_mapped, AreaType) else \
+        type_of_area_mapped
 
     fname = f'{type_of_area_mapped}_polygons_{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}'
 
     polygenized_clusters_geodataframe.to_file(os.path.join(export_path, fname + '.geojson'), driver="GeoJSON")
     polygenized_clusters_geodataframe.to_csv(os.path.join(export_path, fname + '.csv'))
-
-    logging.info('finished saving data!')
-

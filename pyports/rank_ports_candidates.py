@@ -19,6 +19,16 @@ def calc_rank(candidate):
 def filter_candidates(geo_df_clust_polygons, min_nunique_vessels=20, min_distance_from_ww_polygons_km=30,
                       max_distance_from_shore_km=5, remove_intersection_polygon=True):
 
+    """
+
+    :param geo_df_clust_polygons: geopandas df (output of the clustering)
+    :param min_nunique_vessels: polygons with less then this threshold will be filtered
+    :param min_distance_from_ww_polygons_km: polygons with distance below this threshold to other winward polygons will be filtered
+    :param max_distance_from_shore_km: polygons with distance above this threshold to shoreline will be filtered
+    :param remove_intersection_polygon: if True, polygons who's intersect with winward polygons will be filtered
+    :return:
+    """
+
     geo_df_clust_polygons = geo_df_clust_polygons[geo_df_clust_polygons['n_unique_vesselID'] >= min_nunique_vessels]
 
     geo_df_clust_polygons = geo_df_clust_polygons[
@@ -49,8 +59,8 @@ def main(geo_df_clust_polygons, debug=False, min_nunique_vessels=20, min_distanc
 
     x = geo_df_clust_polygons['rank'].values.astype(float).reshape(-1, 1)
     min_max_scaler = preprocessing.MinMaxScaler()
-    geo_df_clust_polygons['rank_scaled'] = min_max_scaler.fit_transform(x)
+    geo_df_clust_polygons['rank_scaled'] = min_max_scaler.fit_transform(x)  # rescale ranks to 0 ->1
 
-    geo_df_clust_polygons = geo_df_clust_polygons.sort_values('rank_scaled', ascending=False)
+    geo_df_clust_polygons = geo_df_clust_polygons.sort_values('rank_scaled', ascending=False)  # sort candidates by rank
 
     return geo_df_clust_polygons
